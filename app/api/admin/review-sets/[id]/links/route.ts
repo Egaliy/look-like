@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { randomBytes } from "crypto";
+import { storage } from "@/lib/localStorage";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Generate a secure random token
-    const token = randomBytes(32).toString("hex");
+    // Проверяем, что review set существует
+    const reviewSet = storage.getReviewSet(params.id);
+    if (!reviewSet) {
+      return NextResponse.json(
+        { error: "Review set not found" },
+        { status: 404 }
+      );
+    }
 
-    const link = await prisma.reviewLink.create({
-      data: {
-        token,
-        reviewSetId: params.id,
-        maxSessions: 1,
-        allowResume: true,
-      },
+    const link = storage.createLink({
+      reviewSetId: params.id,
+      maxSessions: 1,
+      allowResume: true,
+      expiresAt: null,
     });
 
     return NextResponse.json(link);

@@ -38,10 +38,17 @@ export default function ReviewSetPage() {
     fetch(`/api/admin/review-sets/${params.id}`)
       .then((res) => res.json())
       .then((data) => {
-        setReviewSet(data);
+        // Проверяем, что данные валидны
+        if (data && data.id && Array.isArray(data.images) && Array.isArray(data.links)) {
+          setReviewSet(data);
+        } else {
+          setReviewSet(null);
+        }
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("Error loading review set:", error);
+        setReviewSet(null);
         setLoading(false);
       });
   }, [params.id]);
@@ -153,7 +160,7 @@ export default function ReviewSetPage() {
               </Button>
             </div>
 
-            {reviewSet.images.length === 0 ? (
+            {!reviewSet.images || reviewSet.images.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
                 No images yet. Add image URLs above.
               </div>
@@ -177,13 +184,13 @@ export default function ReviewSetPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold">Review Links</h2>
-              <Button onClick={generateLink} disabled={generatingLink || reviewSet.images.length === 0}>
+              <Button onClick={generateLink} disabled={generatingLink || !reviewSet.images || reviewSet.images.length === 0}>
                 <LinkIcon className="mr-2 h-4 w-4" />
                 {generatingLink ? "Generating..." : "Generate Link"}
               </Button>
             </div>
 
-            {reviewSet.links.length === 0 ? (
+            {!reviewSet.links || reviewSet.links.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
                 No links yet. Generate a link to share with clients.
               </div>

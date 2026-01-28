@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/localStorage";
 
 export async function POST(
   request: NextRequest,
@@ -16,20 +16,26 @@ export async function POST(
       );
     }
 
-    // Get current max order
-    const maxOrder = await prisma.imageAsset.findFirst({
-      where: { reviewSetId: params.id },
-      orderBy: { order: "desc" },
-      select: { order: true },
-    });
+    // Проверяем, что review set существует
+    const reviewSet = storage.getReviewSet(params.id);
+    if (!reviewSet) {
+      return NextResponse.json(
+        { error: "Review set not found" },
+        { status: 404 }
+      );
+    }
 
-    const image = await prisma.imageAsset.create({
-      data: {
-        reviewSetId: params.id,
-        url,
-        title: title || null,
-        order: (maxOrder?.order ?? -1) + 1,
-      },
+    // Get current max order
+    const images = storage.getImages(params.id);
+    const maxOrder = images.length > 0 
+      ? Math.max(...images.map(img => img.order))
+      : -1;
+
+    const image = storage.createImage({
+      reviewSetId: params.id,
+      url,
+      title: title || null,
+      order: maxOrder + 1,
     });
 
     return NextResponse.json(image);

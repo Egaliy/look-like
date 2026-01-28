@@ -1,38 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/localStorage";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { token: string } }
 ) {
   try {
-    const reviewLink = await prisma.reviewLink.findUnique({
-      where: { token: params.token },
-      include: {
-        reviewSet: {
-          include: {
-            images: {
-              orderBy: { order: "asc" },
-            },
-          },
-        },
-      },
-    });
+    const reviewLink = storage.getLinkByToken(params.token);
 
     if (!reviewLink) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
-    if (reviewLink.expiresAt && reviewLink.expiresAt < new Date()) {
+    if (reviewLink.expiresAt && new Date(reviewLink.expiresAt) < new Date()) {
       return NextResponse.json({ error: "Link expired" }, { status: 410 });
     }
 
+    const reviewSet = storage.getReviewSet(reviewLink.reviewSetId);
+    if (!reviewSet) {
+      return NextResponse.json({ error: "Review set not found" }, { status: 404 });
+    }
+
+    const images = storage.getImages(reviewLink.reviewSetId).sort(
+      (a, b) => a.order - b.order
+    );
+
     return NextResponse.json({
       reviewSet: {
-        id: reviewLink.reviewSet.id,
-        title: reviewLink.reviewSet.title,
+        id: reviewSet.id,
+        title: reviewSet.title,
       },
-      images: reviewLink.reviewSet.images.map((img) => ({
+      images: images.map((img) => ({
         id: img.id,
         url: img.url,
         title: img.title,

@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/localStorage";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const reviewSet = await prisma.reviewSet.findUnique({
-      where: { id: params.id },
-      include: {
-        images: {
-          orderBy: { order: "asc" },
-        },
-        links: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
+    const reviewSet = storage.getReviewSet(params.id);
 
     if (!reviewSet) {
       return NextResponse.json(
@@ -25,7 +15,16 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(reviewSet);
+    const images = storage.getImages(params.id).sort((a, b) => a.order - b.order);
+    const links = storage.getLinks(params.id).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return NextResponse.json({
+      ...reviewSet,
+      images,
+      links,
+    });
   } catch (error) {
     console.error("Error fetching review set:", error);
     return NextResponse.json(

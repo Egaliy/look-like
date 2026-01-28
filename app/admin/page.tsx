@@ -23,10 +23,18 @@ export default function AdminDashboard() {
     fetch("/api/admin/review-sets")
       .then((res) => res.json())
       .then((data) => {
-        setReviewSets(data);
+        // Убеждаемся, что data - это массив
+        if (Array.isArray(data)) {
+          setReviewSets(data);
+        } else {
+          // Если пришла ошибка или не массив, устанавливаем пустой массив
+          setReviewSets([]);
+        }
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("Error loading review sets:", error);
+        setReviewSets([]);
         setLoading(false);
       });
   }, []);

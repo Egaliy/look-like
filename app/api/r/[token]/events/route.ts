@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/localStorage";
 
 export async function POST(
   request: NextRequest,
@@ -23,35 +23,19 @@ export async function POST(
       );
     }
 
-    const reviewLink = await prisma.reviewLink.findUnique({
-      where: { token: params.token },
-    });
+    const reviewLink = storage.getLinkByToken(params.token);
 
     if (!reviewLink) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
-    // Upsert rating (update if exists, create if not)
-    await prisma.rating.upsert({
-      where: {
-        reviewLinkId_imageId: {
-          reviewLinkId: reviewLink.id,
-          imageId: imageId,
-        },
-      },
-      update: {
-        decision,
-        orderIndex,
-        timestamp: new Date(),
-        sessionId: sessionId || null,
-      },
-      create: {
-        reviewLinkId: reviewLink.id,
-        imageId,
-        decision,
-        orderIndex,
-        sessionId: sessionId || null,
-      },
+    // Upsert rating
+    storage.upsertRating({
+      reviewLinkId: reviewLink.id,
+      imageId,
+      decision,
+      orderIndex,
+      sessionId: sessionId || null,
     });
 
     return NextResponse.json({ success: true });
