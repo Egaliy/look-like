@@ -120,34 +120,44 @@ export default function ReviewSetPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
         <div>Loading...</div>
       </div>
     );
   }
 
   if (!reviewSet) {
-    return <div>Review set not found</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        <div>Review set not found</div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen w-full bg-black">
+      {/* Background glow */}
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/5 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto max-w-6xl p-8">
         <div className="mb-8">
           <button
             onClick={() => router.back()}
-            className="mb-4 text-blue-600 hover:text-blue-800"
+            className="mb-4 text-white/60 hover:text-white"
           >
             ← Back to dashboard
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">{reviewSet.title}</h1>
+          <h1 className="text-3xl font-bold text-white">{reviewSet.title}</h1>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Images Section */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Images ({reviewSet.images.length})</h2>
+              <h2 className="text-xl font-semibold text-white">Images ({reviewSet.images.length})</h2>
             </div>
 
             <div className="mb-4 flex gap-2">
@@ -156,28 +166,28 @@ export default function ReviewSetPage() {
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
                 placeholder="Image URL (e.g., https://example.com/image.jpg)"
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2"
+                className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20"
                 onKeyPress={(e) => e.key === "Enter" && addImage()}
               />
-              <Button onClick={addImage} disabled={!newImageUrl.trim()}>
+              <Button onClick={addImage} disabled={!newImageUrl.trim()} className="bg-white/10 text-white hover:bg-white/20">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
 
             {!reviewSet.images || reviewSet.images.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
+              <div className="rounded-lg border border-dashed border-white/10 p-8 text-center text-white/50">
                 No images yet. Add image URLs above.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {reviewSet.images.map((img) => (
-                  <div key={img.id} className="relative group">
+                  <div key={img.id} className="relative group overflow-hidden rounded-lg">
                     <img
                       src={img.url}
                       alt={img.title || "Reference"}
-                      className="h-32 w-full rounded-lg object-cover"
+                      className="h-32 w-full object-cover"
                     />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-colors" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
                   </div>
                 ))}
               </div>
@@ -185,17 +195,21 @@ export default function ReviewSetPage() {
           </div>
 
           {/* Links Section */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Review Links</h2>
-              <Button onClick={generateLink} disabled={generatingLink || !reviewSet.images || reviewSet.images.length === 0}>
+              <h2 className="text-xl font-semibold text-white">Review Links</h2>
+              <Button 
+                onClick={generateLink} 
+                disabled={generatingLink || !reviewSet.images || reviewSet.images.length === 0}
+                className="bg-white/10 text-white hover:bg-white/20"
+              >
                 <LinkIcon className="mr-2 h-4 w-4" />
                 {generatingLink ? "Generating..." : "Generate Link"}
               </Button>
             </div>
 
             {!reviewSet.links || reviewSet.links.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
+              <div className="rounded-lg border border-dashed border-white/10 p-8 text-center text-white/50">
                 No links yet. Generate a link to share with clients.
               </div>
             ) : (
@@ -205,13 +219,13 @@ export default function ReviewSetPage() {
                   return (
                     <div
                       key={link.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-200 p-4"
+                      className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-4"
                     >
                       <div className="flex-1">
-                        <div className="font-mono text-sm text-gray-600 break-all">
+                        <div className="font-mono text-sm text-white/80 break-all">
                           {url}
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-white/50">
                           Created: {new Date(link.createdAt).toLocaleString()}
                         </div>
                       </div>
@@ -220,6 +234,7 @@ export default function ReviewSetPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => copyLink(link.token)}
+                          className="text-white/60 hover:text-white hover:bg-white/10"
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
@@ -228,7 +243,7 @@ export default function ReviewSetPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="text-white/60 hover:text-white hover:bg-white/10">
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </a>

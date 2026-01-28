@@ -40,17 +40,23 @@ export default function AdminDashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen w-full bg-black">
+      {/* Background glow */}
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/5 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto max-w-6xl p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+            <p className="mt-2 text-white/60">
               Manage review sets and view results
             </p>
           </div>
           <Link href="/admin/review-sets/new">
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/20">
               <Plus className="h-4 w-4" />
               New Review Set
             </Button>
@@ -58,12 +64,14 @@ export default function AdminDashboard() {
         </div>
 
         {loading ? (
-          <div className="text-center text-gray-600">Loading...</div>
+          <div className="text-center text-white/60">Loading...</div>
         ) : reviewSets.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-            <p className="text-gray-600">No review sets yet.</p>
+          <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
+            <p className="text-white/80">No review sets yet.</p>
             <Link href="/admin/review-sets/new">
-              <Button className="mt-4">Create your first review set</Button>
+              <Button className="mt-4 bg-white/10 text-white hover:bg-white/20">
+                Create your first review set
+              </Button>
             </Link>
           </div>
         ) : (
@@ -72,16 +80,16 @@ export default function AdminDashboard() {
               <Link
                 key={set.id}
                 href={`/admin/review-sets/${set.id}`}
-                className="rounded-lg border border-gray-200 bg-white p-6 transition-shadow hover:shadow-lg"
+                className="rounded-lg border border-white/10 bg-white/5 p-6 transition-all hover:bg-white/10 hover:shadow-lg"
               >
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-white">
                   {set.title}
                 </h3>
-                <div className="mt-4 flex items-center gap-4 text-sm text-gray-600">
+                <div className="mt-4 flex items-center gap-4 text-sm text-white/60">
                   <span>{set._count.images} images</span>
                   <span>{set._count.links} links</span>
                 </div>
-                <div className="mt-2 text-xs text-gray-500">
+                <div className="mt-2 text-xs text-white/50">
                   Created: {new Date(set.createdAt).toLocaleDateString()}
                 </div>
               </Link>
