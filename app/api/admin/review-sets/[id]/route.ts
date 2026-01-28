@@ -22,8 +22,8 @@ export async function GET(
 
     return NextResponse.json({
       ...reviewSet,
-      images,
-      links,
+      images: images || [],
+      links: links || [],
     });
   } catch (error) {
     console.error("Error fetching review set:", error);

@@ -38,9 +38,13 @@ export default function ReviewSetPage() {
     fetch(`/api/admin/review-sets/${params.id}`)
       .then((res) => res.json())
       .then((data) => {
-        // Проверяем, что данные валидны
-        if (data && data.id && Array.isArray(data.images) && Array.isArray(data.links)) {
-          setReviewSet(data);
+        // Проверяем, что данные валидны и гарантируем наличие массивов
+        if (data && data.id) {
+          setReviewSet({
+            ...data,
+            images: Array.isArray(data.images) ? data.images : [],
+            links: Array.isArray(data.links) ? data.links : [],
+          });
         } else {
           setReviewSet(null);
         }
