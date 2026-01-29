@@ -17,22 +17,23 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
+  // Валидация названия в реальном времени
+  const isValidTitle = title.trim().length > 0;
+  const borderColor = reviewSetId 
+    ? "border-white/10" 
+    : isValidTitle 
+      ? "border-green-500/50 focus:border-green-500" 
+      : title.length > 0 
+        ? "border-red-500/50 focus:border-red-500" 
+        : "border-white/10";
+
   async function handleFileUpload(files: FileList | null, isZip: boolean = false) {
     if (!files || files.length === 0) return;
     
-    // Если проект еще не создан, создаем его автоматически
+    // Проект должен быть создан заранее
     if (!reviewSetId) {
-      if (!title.trim()) {
-        alert("Введите название проекта");
-        return;
-      }
-      await createProject();
-      // Ждем создания проекта
-      await new Promise(resolve => setTimeout(resolve, 500));
-      if (!reviewSetId) {
-        alert("Не удалось создать проект");
-        return;
-      }
+      alert("Сначала создайте проект");
+      return;
     }
 
     setUploading(true);
@@ -190,14 +191,18 @@ export default function AdminPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Введите название"
               disabled={!!reviewSetId}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-50"
-              onKeyPress={(e) => e.key === "Enter" && !reviewSetId && createProject()}
+              className={`w-full rounded-md border-2 ${borderColor} bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 ${
+                isValidTitle && !reviewSetId ? "focus:ring-green-500/30" : 
+                title.length > 0 && !isValidTitle ? "focus:ring-red-500/30" : 
+                "focus:ring-white/20"
+              } transition-colors disabled:opacity-50`}
+              onKeyPress={(e) => e.key === "Enter" && !reviewSetId && isValidTitle && createProject()}
             />
             {!reviewSetId && (
               <Button
                 onClick={createProject}
-                disabled={creating || !title.trim()}
-                className="mt-3 bg-white/10 text-white hover:bg-white/20"
+                disabled={creating || !isValidTitle}
+                className="mt-3 bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
               >
                 {creating ? "Создание..." : "Создать проект"}
               </Button>
@@ -222,8 +227,8 @@ export default function AdminPage() {
                 />
                 <Button
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || (!reviewSetId && !title.trim())}
-                  className="bg-white/10 text-white hover:bg-white/20"
+                  disabled={uploading || !reviewSetId}
+                  className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
                 >
                   <Upload className="mr-2 h-4 w-4" />
                   Выбрать файлы
@@ -240,8 +245,8 @@ export default function AdminPage() {
                 />
                 <Button
                   onClick={() => zipInputRef.current?.click()}
-                  disabled={uploading || (!reviewSetId && !title.trim())}
-                  className="bg-white/10 text-white hover:bg-white/20"
+                  disabled={uploading || !reviewSetId}
+                  className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
                 >
                   <Upload className="mr-2 h-4 w-4" />
                   Загрузить ZIP архив
