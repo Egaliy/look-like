@@ -2,30 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
-  // Используем прямой connection string для удаления (без pooling)
-  const directUrl = process.env.DATABASE_URL?.replace(
-    'pooler.supabase.com:6543',
-    'db.ihaeyegjabyzkvpxqwor.supabase.co:5432'
-  )?.replace(
-    'aws-1-eu-west-1.pooler',
-    'db.ihaeyegjabyzkvpxqwor'
-  ) || process.env.DATABASE_URL;
-
-  const prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: directUrl + '?sslmode=require',
-      },
-    },
-  });
+  // Используем pooling connection (проблема с prepared statements решается перезапуском)
+  const prisma = new PrismaClient();
   
   try {
+    // Перезапускаем соединение для очистки prepared statements
+    await prisma.$disconnect();
     await prisma.$connect();
     
-    // Удаляем через обычные методы Prisma
+    // Удаляем через обычные методы Prisma с задержками
+    await new Promise(resolve => setTimeout(resolve, 100));
     await prisma.rating.deleteMany();
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
     await prisma.reviewLink.deleteMany();
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
     await prisma.imageAsset.deleteMany();
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
     await prisma.reviewSet.deleteMany();
 
     return NextResponse.json({ success: true, message: "All projects deleted" });
