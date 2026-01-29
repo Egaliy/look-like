@@ -48,6 +48,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Перезапускаем соединение для избежания проблем с prepared statements
+    try {
+      await prisma.$disconnect();
+    } catch (e) {
+      // Игнорируем ошибки отключения
+    }
+    await prisma.$connect();
+
     const reviewSet = await prisma.reviewSet.create({
       data: {
         title,
@@ -62,10 +70,10 @@ export async function POST(request: NextRequest) {
       createdAt: reviewSet.createdAt.toISOString(),
       updatedAt: reviewSet.updatedAt.toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating review set:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
