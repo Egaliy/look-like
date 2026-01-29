@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Link as LinkIcon, Copy, Check, X } from "lucide-react";
+import { Upload, Link as LinkIcon, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AdminPage() {
@@ -19,9 +19,20 @@ export default function AdminPage() {
 
   async function handleFileUpload(files: FileList | null, isZip: boolean = false) {
     if (!files || files.length === 0) return;
+    
+    // Если проект еще не создан, создаем его автоматически
     if (!reviewSetId) {
-      alert("Сначала создайте проект");
-      return;
+      if (!title.trim()) {
+        alert("Введите название проекта");
+        return;
+      }
+      await createProject();
+      // Ждем создания проекта
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!reviewSetId) {
+        alert("Не удалось создать проект");
+        return;
+      }
     }
 
     setUploading(true);
@@ -30,7 +41,7 @@ export default function AdminPage() {
         const file = files[0];
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("reviewSetId", reviewSetId);
+        formData.append("reviewSetId", reviewSetId!);
 
         const res = await fetch("/api/admin/upload", {
           method: "POST",
@@ -39,17 +50,17 @@ export default function AdminPage() {
 
         const data = await res.json();
         if (data.success && data.files) {
-          // Добавляем файлы в базу данных
           for (const filePath of data.files) {
             await addImageToDB(filePath);
           }
+        } else {
+          alert(data.error || "Ошибка при загрузке ZIP");
         }
       } else {
-        // Загружаем файлы по одному
         for (const file of Array.from(files)) {
           const formData = new FormData();
           formData.append("file", file);
-          formData.append("reviewSetId", reviewSetId);
+          formData.append("reviewSetId", reviewSetId!);
 
           const res = await fetch("/api/admin/upload", {
             method: "POST",
@@ -59,6 +70,8 @@ export default function AdminPage() {
           const data = await res.json();
           if (data.success && data.filePath) {
             await addImageToDB(data.filePath);
+          } else {
+            alert(data.error || "Ошибка при загрузке файла");
           }
         }
       }
@@ -71,6 +84,8 @@ export default function AdminPage() {
   }
 
   async function addImageToDB(filePath: string) {
+    if (!reviewSetId) return;
+    
     try {
       const res = await fetch(`/api/admin/review-sets/${reviewSetId}/images`, {
         method: "POST",
@@ -81,6 +96,9 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         setImages((prev) => [...prev, data.filePath || data.url]);
+      } else {
+        const errorData = await res.json();
+        console.error("Error adding image:", errorData);
       }
     } catch (error) {
       console.error("Error adding image to DB:", error);
@@ -101,15 +119,18 @@ export default function AdminPage() {
         body: JSON.stringify({ title }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      
+      if (res.ok && data.id) {
         setReviewSetId(data.id);
       } else {
-        alert("Ошибка при создании проекта");
+        const errorMsg = data.error || "Ошибка при создании проекта";
+        console.error("Error:", errorMsg);
+        alert(errorMsg);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating project:", error);
-      alert("Ошибка при создании проекта");
+      alert(`Ошибка при создании проекта: ${error.message || "Неизвестная ошибка"}`);
     } finally {
       setCreating(false);
     }
@@ -132,7 +153,8 @@ export default function AdminPage() {
         setClientLink(`${baseUrl}/r/${data.token}`);
         setAdminLink(`${baseUrl}/admin/results/${data.adminToken}`);
       } else {
-        alert("Ошибка при создании ссылки");
+        const errorData = await res.json();
+        alert(errorData.error || "Ошибка при создании ссылки");
       }
     } catch (error) {
       console.error("Error generating link:", error);
@@ -156,115 +178,114 @@ export default function AdminPage() {
       <div className="relative mx-auto max-w-4xl p-8">
         <h1 className="mb-8 text-3xl font-bold text-white">Создать проект</h1>
 
-        {/* Создание проекта */}
-        {!reviewSetId ? (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-white/80 mb-2">
-                Название проекта
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Введите название"
-                className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20"
-                onKeyPress={(e) => e.key === "Enter" && createProject()}
-              />
-            </div>
-            <Button
-              onClick={createProject}
-              disabled={creating || !title.trim()}
-              className="bg-white/10 text-white hover:bg-white/20"
-            >
-              {creating ? "Создание..." : "Создать проект"}
-            </Button>
-          </div>
-        ) : (
-          <>
-            {/* Загрузка файлов */}
-            <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-6">
-              <h2 className="mb-4 text-xl font-semibold text-white">
-                Загрузить фотографии ({images.length})
-              </h2>
-
-              <div className="mb-4 flex gap-4">
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                  />
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="bg-white/10 text-white hover:bg-white/20"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Выбрать файлы
-                  </Button>
-                </div>
-
-                <div>
-                  <input
-                    ref={zipInputRef}
-                    type="file"
-                    accept=".zip"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e.target.files, true)}
-                  />
-                  <Button
-                    onClick={() => zipInputRef.current?.click()}
-                    disabled={uploading}
-                    className="bg-white/10 text-white hover:bg-white/20"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Загрузить ZIP архив
-                  </Button>
-                </div>
-              </div>
-
-              {uploading && (
-                <div className="text-white/60">Загрузка...</div>
-              )}
-
-              {images.length > 0 && (
-                <div className="mt-4 grid grid-cols-4 gap-2">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
-                      <img
-                        src={img}
-                        alt={`Image ${idx + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Генерация ссылки */}
-            {images.length > 0 && !clientLink && (
-              <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-6">
-                <Button
-                  onClick={generateLink}
-                  className="bg-white/10 text-white hover:bg-white/20"
-                >
-                  <LinkIcon className="mr-2 h-4 w-4" />
-                  Сформировать ссылку
-                </Button>
-              </div>
+        <div className="rounded-lg border border-white/10 bg-white/5 p-6">
+          {/* Название проекта - всегда видно */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Название проекта
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Введите название"
+              disabled={!!reviewSetId}
+              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-50"
+              onKeyPress={(e) => e.key === "Enter" && !reviewSetId && createProject()}
+            />
+            {!reviewSetId && (
+              <Button
+                onClick={createProject}
+                disabled={creating || !title.trim()}
+                className="mt-3 bg-white/10 text-white hover:bg-white/20"
+              >
+                {creating ? "Создание..." : "Создать проект"}
+              </Button>
             )}
+          </div>
 
-            {/* Показ ссылок */}
-            {clientLink && (
-              <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-                <h2 className="mb-4 text-xl font-semibold text-white">Ссылки созданы</h2>
+          {/* Загрузка файлов - доступна после создания проекта */}
+          {reviewSetId && (
+            <>
+              <div className="mb-6">
+                <h2 className="mb-4 text-xl font-semibold text-white">
+                  Загрузить фотографии ({images.length})
+                </h2>
 
-                <div className="mb-4 space-y-3">
+                <div className="mb-4 flex gap-4">
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                    />
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="bg-white/10 text-white hover:bg-white/20"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Выбрать файлы
+                    </Button>
+                  </div>
+
+                  <div>
+                    <input
+                      ref={zipInputRef}
+                      type="file"
+                      accept=".zip"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e.target.files, true)}
+                    />
+                    <Button
+                      onClick={() => zipInputRef.current?.click()}
+                      disabled={uploading}
+                      className="bg-white/10 text-white hover:bg-white/20"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Загрузить ZIP архив
+                    </Button>
+                  </div>
+                </div>
+
+                {uploading && (
+                  <div className="text-white/60">Загрузка...</div>
+                )}
+
+                {images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-4 gap-2">
+                    {images.map((img, idx) => (
+                      <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
+                        <img
+                          src={img}
+                          alt={`Image ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Генерация ссылки */}
+              {images.length > 0 && !clientLink && (
+                <div className="mb-6">
+                  <Button
+                    onClick={generateLink}
+                    className="bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Сформировать ссылку
+                  </Button>
+                </div>
+              )}
+
+              {/* Показ ссылок */}
+              {clientLink && (
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-white/80 mb-2">
                       Ссылка для клиента
@@ -313,10 +334,10 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
