@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
+  // Создаем новый клиент для этого запроса (избегаем проблем с pooling)
+  const prisma = new PrismaClient();
+  
   try {
-    // Удаляем все через транзакцию
-    await prisma.$transaction(async (tx) => {
-      await tx.rating.deleteMany();
-      await tx.reviewLink.deleteMany();
-      await tx.imageAsset.deleteMany();
-      await tx.reviewSet.deleteMany();
-    });
+    // Перезапускаем соединение
+    await prisma.$connect();
+    
+    // Удаляем через SQL напрямую
+    await prisma.$executeRawUnsafe('DELETE FROM "ratings";');
+    await prisma.$executeRawUnsafe('DELETE FROM "review_links";');
+    await prisma.$executeRawUnsafe('DELETE FROM "image_assets";');
+    await prisma.$executeRawUnsafe('DELETE FROM "review_sets";');
 
     return NextResponse.json({ success: true, message: "All projects deleted" });
   } catch (error: any) {
     console.error("Error deleting projects:", error);
     
-    // Если транзакция не работает, пробуем по отдельности
+    // Пробуем через обычные методы
     try {
       await prisma.rating.deleteMany();
       await prisma.reviewLink.deleteMany();
@@ -28,5 +32,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+  } finally {
+    await prisma.$disconnect();
   }
 }
