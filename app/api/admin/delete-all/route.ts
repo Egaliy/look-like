@@ -2,36 +2,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
-  // Создаем новый клиент для этого запроса (избегаем проблем с pooling)
-  const prisma = new PrismaClient();
+  // Используем прямой connection string для удаления (без pooling)
+  const directUrl = process.env.DATABASE_URL?.replace(
+    'pooler.supabase.com:6543',
+    'db.ihaeyegjabyzkvpxqwor.supabase.co:5432'
+  )?.replace(
+    'aws-1-eu-west-1.pooler',
+    'db.ihaeyegjabyzkvpxqwor'
+  ) || process.env.DATABASE_URL;
+
+  const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: directUrl + '?sslmode=require',
+      },
+    },
+  });
   
   try {
-    // Перезапускаем соединение
     await prisma.$connect();
     
-    // Удаляем через SQL напрямую
-    await prisma.$executeRawUnsafe('DELETE FROM "ratings";');
-    await prisma.$executeRawUnsafe('DELETE FROM "review_links";');
-    await prisma.$executeRawUnsafe('DELETE FROM "image_assets";');
-    await prisma.$executeRawUnsafe('DELETE FROM "review_sets";');
+    // Удаляем через обычные методы Prisma
+    await prisma.rating.deleteMany();
+    await prisma.reviewLink.deleteMany();
+    await prisma.imageAsset.deleteMany();
+    await prisma.reviewSet.deleteMany();
 
     return NextResponse.json({ success: true, message: "All projects deleted" });
   } catch (error: any) {
     console.error("Error deleting projects:", error);
-    
-    // Пробуем через обычные методы
-    try {
-      await prisma.rating.deleteMany();
-      await prisma.reviewLink.deleteMany();
-      await prisma.imageAsset.deleteMany();
-      await prisma.reviewSet.deleteMany();
-      return NextResponse.json({ success: true, message: "All projects deleted" });
-    } catch (e2: any) {
-      return NextResponse.json(
-        { error: e2.message || "Failed to delete projects" },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(
+      { error: error.message || "Failed to delete projects" },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }
