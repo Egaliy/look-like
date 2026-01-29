@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/lib/localStorage";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
   request: NextRequest,
@@ -7,9 +7,9 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { imageId, decision, orderIndex, sessionId } = body;
+    const { imageId, decision, orderIndex, sessionId, clientId } = body;
 
-    if (!imageId || !decision || typeof orderIndex !== "number") {
+    if (!imageId || !decision || typeof orderIndex !== "number" || !clientId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -23,19 +23,37 @@ export async function POST(
       );
     }
 
-    const reviewLink = storage.getLinkByToken(params.token);
+    const reviewLink = await prisma.reviewLink.findUnique({
+      where: { token: params.token },
+    });
 
     if (!reviewLink) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
-    // Upsert rating
-    storage.upsertRating({
-      reviewLinkId: reviewLink.id,
-      imageId,
-      decision,
-      orderIndex,
-      sessionId: sessionId || null,
+    // Upsert rating (update if exists, create if not) с учетом clientId
+    await prisma.rating.upsert({
+      where: {
+        reviewLinkId_imageId_clientId: {
+          reviewLinkId: reviewLink.id,
+          imageId: imageId,
+          clientId: clientId,
+        },
+      },
+      update: {
+        decision,
+        orderIndex,
+        sessionId: sessionId || null,
+        timestamp: new Date(),
+      },
+      create: {
+        reviewLinkId: reviewLink.id,
+        imageId,
+        decision,
+        clientId,
+        orderIndex,
+        sessionId: sessionId || null,
+      },
     });
 
     return NextResponse.json({ success: true });

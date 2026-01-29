@@ -35,7 +35,8 @@ model ReviewSet {
 model ImageAsset {
   id          String    @id @default(cuid())
   reviewSetId String
-  url         String    // S3/CDN URL
+  url         String?   // URL для внешних изображений (Pinterest и т.д.)
+  filePath    String?   // Путь к загруженному файлу
   order       Int       @default(0)
   title       String?
   metadata    Json?     // Optional: width, height, etc.
@@ -51,6 +52,7 @@ model ImageAsset {
 model ReviewLink {
   id          String    @id @default(cuid())
   token       String    @unique @default(cuid())
+  adminToken  String    @unique @default(cuid()) // Token для админа для просмотра результатов
   reviewSetId String
   maxSessions Int       @default(1)
   allowResume Boolean   @default(true)
@@ -63,6 +65,7 @@ model ReviewLink {
   
   @@map("review_links")
   @@index([token])
+  @@index([adminToken])
 }
 
 model Rating {
@@ -70,6 +73,7 @@ model Rating {
   reviewLinkId String
   imageId     String
   decision    String     // "like" | "dislike"
+  clientId    String     // ID клиента/заказчика (для различения нескольких заказчиков)
   timestamp   DateTime   @default(now())
   orderIndex  Int        // Position in session
   sessionId   String?    // Optional: for grouping events
@@ -81,5 +85,6 @@ model Rating {
   @@map("ratings")
   @@index([reviewLinkId])
   @@index([imageId])
-  @@unique([reviewLinkId, imageId]) // One rating per image per link
+  @@index([reviewLinkId, imageId, clientId])
+  @@unique([reviewLinkId, imageId, clientId]) // One rating per image per link per client
 }

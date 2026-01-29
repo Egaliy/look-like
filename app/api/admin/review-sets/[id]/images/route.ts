@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/lib/localStorage";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
   request: NextRequest,
@@ -7,17 +7,13 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { url, title } = body;
-
-    if (!url) {
-      return NextResponse.json(
-        { error: "URL is required" },
-        { status: 400 }
-      );
-    }
+    const { filePath, url, title } = body;
 
     // Проверяем, что review set существует
-    const reviewSet = storage.getReviewSet(params.id);
+    const reviewSet = await prisma.reviewSet.findUnique({
+      where: { id: params.id },
+    });
+
     if (!reviewSet) {
       return NextResponse.json(
         { error: "Review set not found" },
@@ -26,19 +22,34 @@ export async function POST(
     }
 
     // Get current max order
-    const images = storage.getImages(params.id);
-    const maxOrder = images.length > 0 
-      ? Math.max(...images.map(img => img.order))
-      : -1;
-
-    const image = storage.createImage({
-      reviewSetId: params.id,
-      url,
-      title: title || null,
-      order: maxOrder + 1,
+    const maxOrderImage = await prisma.imageAsset.findFirst({
+      where: { reviewSetId: params.id },
+      orderBy: { order: "desc" },
+      select: { order: true },
     });
 
-    return NextResponse.json(image);
+    const maxOrder = maxOrderImage?.order ?? -1;
+
+    const image = await prisma.imageAsset.create({
+      data: {
+        reviewSetId: params.id,
+        url: url || null,
+        filePath: filePath || null,
+        title: title || null,
+        order: maxOrder + 1,
+      },
+    });
+
+    return NextResponse.json({
+      id: image.id,
+      reviewSetId: image.reviewSetId,
+      url: image.url,
+      filePath: image.filePath,
+      order: image.order,
+      title: image.title,
+      metadata: image.metadata,
+      createdAt: image.createdAt.toISOString(),
+    });
   } catch (error) {
     console.error("Error adding image:", error);
     return NextResponse.json(

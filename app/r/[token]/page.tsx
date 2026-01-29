@@ -165,8 +165,17 @@ export default function ReviewPage({
   const [history, setHistory] = useState<{ id: string; action: string }[]>([]);
   const [refs, setRefs] = useState<RefItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientId, setClientId] = useState<string>("");
 
   useEffect(() => {
+    // Генерируем или получаем clientId из localStorage
+    let storedClientId = localStorage.getItem(`clientId_${params.token}`);
+    if (!storedClientId) {
+      storedClientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem(`clientId_${params.token}`, storedClientId);
+    }
+    setClientId(storedClientId);
+
     // Load review set data
     fetch(`/api/r/${params.token}`)
       .then((res) => res.json())
@@ -177,7 +186,7 @@ export default function ReviewPage({
               id: img.id,
               title: img.title || `Reference #${i + 1}`,
               subtitle: "Swipe to rate",
-              url: img.url,
+              url: img.filePath || img.url || "",
             }))
           );
         } else {
@@ -238,15 +247,18 @@ export default function ReviewPage({
     }
 
     // Send event to API
-    fetch(`/api/r/${params.token}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        imageId: current.id,
-        decision: action,
-        orderIndex: index,
-      }),
-    }).catch(console.error);
+    if (clientId) {
+      fetch(`/api/r/${params.token}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageId: current.id,
+          decision: action,
+          orderIndex: index,
+          clientId: clientId,
+        }),
+      }).catch(console.error);
+    }
 
     setIndex((v) => Math.min(refs.length, v + 1));
   }

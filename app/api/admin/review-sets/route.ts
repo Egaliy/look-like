@@ -1,29 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/lib/localStorage";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const reviewSets = storage.getReviewSets();
-    const images = storage.getImages("");
-    const links = storage.getLinks("");
-
-    // Группируем по reviewSetId для подсчета
-    const imagesBySet: Record<string, number> = {};
-    const linksBySet: Record<string, number> = {};
-
-    images.forEach((img) => {
-      imagesBySet[img.reviewSetId] = (imagesBySet[img.reviewSetId] || 0) + 1;
-    });
-
-    links.forEach((link) => {
-      linksBySet[link.reviewSetId] = (linksBySet[link.reviewSetId] || 0) + 1;
+    const reviewSets = await prisma.reviewSet.findMany({
+      include: {
+        _count: {
+          select: {
+            images: true,
+            links: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
     const result = reviewSets.map((set) => ({
-      ...set,
+      id: set.id,
+      title: set.title,
+      description: set.description,
+      createdAt: set.createdAt.toISOString(),
+      updatedAt: set.updatedAt.toISOString(),
       _count: {
-        images: imagesBySet[set.id] || 0,
-        links: linksBySet[set.id] || 0,
+        images: set._count.images,
+        links: set._count.links,
       },
     }));
 
@@ -46,12 +48,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reviewSet = storage.createReviewSet({
-      title,
-      description: description || null,
+    const reviewSet = await prisma.reviewSet.create({
+      data: {
+        title,
+        description: description || null,
+      },
     });
 
-    return NextResponse.json(reviewSet);
+    return NextResponse.json({
+      id: reviewSet.id,
+      title: reviewSet.title,
+      description: reviewSet.description,
+      createdAt: reviewSet.createdAt.toISOString(),
+      updatedAt: reviewSet.updatedAt.toISOString(),
+    });
   } catch (error) {
     console.error("Error creating review set:", error);
     return NextResponse.json(
