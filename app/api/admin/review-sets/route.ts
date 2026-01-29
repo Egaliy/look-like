@@ -37,6 +37,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Создаем новый PrismaClient для каждого запроса, чтобы избежать проблем с prepared statements
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
     const body = await request.json();
     const { title, description } = body;
@@ -48,15 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Перезапускаем соединение для избежания проблем с prepared statements
-    try {
-      await prisma.$disconnect();
-    } catch (e) {
-      // Игнорируем ошибки отключения
-    }
-    await prisma.$connect();
-
-    const reviewSet = await prisma.reviewSet.create({
+    const reviewSet = await prismaInstance.reviewSet.create({
       data: {
         title,
         description: description || null,
@@ -76,5 +72,7 @@ export async function POST(request: NextRequest) {
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }

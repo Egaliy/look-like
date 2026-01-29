@@ -204,138 +204,134 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Загрузка файлов - доступна после создания проекта */}
-          {reviewSetId && (
-            <>
-              <div className="mb-6">
-                <h2 className="mb-4 text-xl font-semibold text-white">
-                  Загрузить фотографии ({images.length})
-                </h2>
+          {/* Загрузка файлов - всегда видна */}
+          <div className="mb-6">
+            <h2 className="mb-4 text-xl font-semibold text-white">
+              Загрузить фотографии ({images.length})
+            </h2>
 
-                <div className="mb-4 flex gap-4">
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e.target.files)}
-                    />
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="bg-white/10 text-white hover:bg-white/20"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Выбрать файлы
-                    </Button>
-                  </div>
-
-                  <div>
-                    <input
-                      ref={zipInputRef}
-                      type="file"
-                      accept=".zip"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e.target.files, true)}
-                    />
-                    <Button
-                      onClick={() => zipInputRef.current?.click()}
-                      disabled={uploading}
-                      className="bg-white/10 text-white hover:bg-white/20"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Загрузить ZIP архив
-                    </Button>
-                  </div>
-                </div>
-
-                {uploading && (
-                  <div className="text-white/60">Загрузка...</div>
-                )}
-
-                {images.length > 0 && (
-                  <div className="mt-4 grid grid-cols-4 gap-2">
-                    {images.map((img, idx) => (
-                      <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
-                        <img
-                          src={img}
-                          alt={`Image ${idx + 1}`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="mb-4 flex gap-4">
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || (!reviewSetId && !title.trim())}
+                  className="bg-white/10 text-white hover:bg-white/20"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Выбрать файлы
+                </Button>
               </div>
 
-              {/* Генерация ссылки */}
-              {images.length > 0 && !clientLink && (
-                <div className="mb-6">
+              <div>
+                <input
+                  ref={zipInputRef}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files, true)}
+                />
+                <Button
+                  onClick={() => zipInputRef.current?.click()}
+                  disabled={uploading || (!reviewSetId && !title.trim())}
+                  className="bg-white/10 text-white hover:bg-white/20"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Загрузить ZIP архив
+                </Button>
+              </div>
+            </div>
+
+            {uploading && (
+              <div className="text-white/60">Загрузка...</div>
+            )}
+
+            {images.length > 0 && (
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
+                    <img
+                      src={img}
+                      alt={`Image ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Генерация ссылки */}
+          {images.length > 0 && !clientLink && (
+            <div className="mb-6">
+              <Button
+                onClick={generateLink}
+                className="bg-white/10 text-white hover:bg-white/20"
+              >
+                <LinkIcon className="mr-2 h-4 w-4" />
+                Сформировать ссылку
+              </Button>
+            </div>
+          )}
+
+          {/* Показ ссылок */}
+          {clientLink && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Ссылка для клиента
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={clientLink}
+                    readOnly
+                    className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white/80 font-mono text-sm"
+                  />
                   <Button
-                    onClick={generateLink}
+                    onClick={() => copyToClipboard(clientLink, "client")}
                     className="bg-white/10 text-white hover:bg-white/20"
                   >
-                    <LinkIcon className="mr-2 h-4 w-4" />
-                    Сформировать ссылку
+                    {copied === "client" ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
-              )}
+              </div>
 
-              {/* Показ ссылок */}
-              {clientLink && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">
-                      Ссылка для клиента
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={clientLink}
-                        readOnly
-                        className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white/80 font-mono text-sm"
-                      />
-                      <Button
-                        onClick={() => copyToClipboard(clientLink, "client")}
-                        className="bg-white/10 text-white hover:bg-white/20"
-                      >
-                        {copied === "client" ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">
-                      Ссылка для просмотра результатов (админ)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={adminLink || ""}
-                        readOnly
-                        className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white/80 font-mono text-sm"
-                      />
-                      <Button
-                        onClick={() => adminLink && copyToClipboard(adminLink, "admin")}
-                        className="bg-white/10 text-white hover:bg-white/20"
-                      >
-                        {copied === "admin" ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Ссылка для просмотра результатов (админ)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={adminLink || ""}
+                    readOnly
+                    className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white/80 font-mono text-sm"
+                  />
+                  <Button
+                    onClick={() => adminLink && copyToClipboard(adminLink, "admin")}
+                    className="bg-white/10 text-white hover:bg-white/20"
+                  >
+                    {copied === "admin" ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              )}
-            </>
+              </div>
+            </div>
           )}
         </div>
       </div>
