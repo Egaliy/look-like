@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
-    const reviewSets = await prisma.reviewSet.findMany({
+    const reviewSets = await prismaInstance.reviewSet.findMany({
       include: {
         _count: {
           select: {
@@ -30,9 +33,11 @@ export async function GET() {
     }));
 
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching review sets:", error);
     return NextResponse.json([]);
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }
 
