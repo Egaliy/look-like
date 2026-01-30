@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, Link as LinkIcon, Copy, ExternalLink, Trash2, BarChart3, X } from "lucide-react";
+import { Plus, Link as LinkIcon, Copy, ExternalLink, Trash2, BarChart3, X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ImageAsset {
@@ -51,6 +51,15 @@ export default function ReviewSetPage() {
   const [deletingLink, setDeletingLink] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    total: number;
+    uploaded: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function loadData() {
     fetch(`/api/admin/review-sets/${params.id}`)
@@ -105,6 +114,114 @@ export default function ReviewSetPage() {
       }
     } catch (error) {
       alert("Error adding image");
+    }
+  }
+
+  async function handleFileUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
+    let uploaded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    setUploading(true);
+    setUploadProgress({
+      total: totalFiles,
+      uploaded: 0,
+      failed: 0,
+      errors: [],
+    });
+
+    try {
+      for (const file of fileArray) {
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("reviewSetId", params.id as string);
+
+          const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+          const data = await res.json();
+          
+          if (data.success) {
+            if (data.files && Array.isArray(data.files)) {
+              // ZIP файл - добавляем все файлы из архива
+              for (const filePath of data.files) {
+                await addImageToDB(filePath);
+              }
+              uploaded += data.files.length;
+            } else if (data.filePath) {
+              // Одиночный файл
+              await addImageToDB(data.filePath);
+              uploaded++;
+            }
+          } else {
+            failed++;
+            errors.push(`${file.name}: ${data.error || "Upload failed"}`);
+          }
+        } catch (error: any) {
+          failed++;
+          errors.push(`${file.name}: ${error.message || "Upload error"}`);
+        }
+
+        setUploadProgress({
+          total: totalFiles,
+          uploaded,
+          failed,
+          errors: [...errors],
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      errors.push("General upload error");
+    } finally {
+      setUploading(false);
+      loadData();
+      // Очищаем прогресс через 5 секунд
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 5000);
+    }
+  }
+
+  async function addImageToDB(filePath: string) {
+    try {
+      const res = await fetch(`/api/admin/review-sets/${params.id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add image to database");
+      }
+    } catch (error) {
+      console.error("Error adding image to DB:", error);
+      throw error;
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files);
     }
   }
 
@@ -325,12 +442,77 @@ export default function ReviewSetPage() {
               </Button>
             </div>
 
+            <div className="mb-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.zip"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Photos or ZIP Archive
+              </Button>
+            </div>
+
+            {/* Upload Progress */}
+            {uploadProgress && (
+              <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-4">
+                <div className="mb-2 flex items-center justify-between text-sm text-white">
+                  <span>Uploading: {uploadProgress.uploaded} / {uploadProgress.total}</span>
+                  {uploadProgress.failed > 0 && (
+                    <span className="text-red-400">Failed: {uploadProgress.failed}</span>
+                  )}
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-emerald-500/80 transition-all"
+                    style={{ width: `${(uploadProgress.uploaded / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+                {uploadProgress.errors.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {uploadProgress.errors.map((error, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-red-400">
+                        <X className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                        <span>{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {!reviewSet.images || reviewSet.images.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-white/10 p-8 text-center text-white/50">
-                No images.
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                  isDragging
+                    ? "border-emerald-400/50 bg-emerald-400/10"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <div className="text-white/50">
+                  {isDragging ? "Drop files here" : "No images. Drag and drop files here or use the upload button above."}
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`grid grid-cols-2 gap-4 rounded-lg p-2 transition-colors ${
+                  isDragging ? "bg-emerald-400/10 border-2 border-dashed border-emerald-400/50" : ""
+                }`}
+              >
                 {reviewSet.images.map((img) => {
                   const src = img.filePath || img.url || "";
                   return (
@@ -358,6 +540,11 @@ export default function ReviewSetPage() {
                     </div>
                   );
                 })}
+                {isDragging && (
+                  <div className="col-span-2 flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-emerald-400/50 bg-emerald-400/10 text-emerald-400">
+                    Drop files here to add more images
+                  </div>
+                )}
               </div>
             )}
           </div>
