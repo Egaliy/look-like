@@ -56,7 +56,7 @@ export default function ResultsPage() {
     return image.ratings.filter((r) => r.decision === "dislike").length;
   }
 
-  // Группируем изображения по количеству лайков
+  // Group images by like count
   const groupedImages = {
     zero: images.filter((img) => getLikeCount(img) === 0),
     one: images.filter((img) => getLikeCount(img) === 1),
@@ -66,7 +66,7 @@ export default function ResultsPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div>Загрузка результатов...</div>
+        <div>Loading results...</div>
       </div>
     );
   }
@@ -79,13 +79,13 @@ export default function ResultsPage() {
       </div>
 
       <div className="relative mx-auto max-w-7xl p-8">
-        <h1 className="mb-8 text-3xl font-bold text-white">Результаты оценки</h1>
+        <h1 className="mb-8 text-3xl font-bold text-white">Review Results</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 0 лайков */}
+          {/* 0 likes */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <h2 className="mb-4 text-xl font-semibold text-white">
-              0 лайков ({groupedImages.zero.length})
+              0 likes ({groupedImages.zero.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {groupedImages.zero.map((img) => (
@@ -103,10 +103,10 @@ export default function ResultsPage() {
             </div>
           </div>
 
-          {/* 1 лайк */}
+          {/* 1 like */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <h2 className="mb-4 text-xl font-semibold text-white">
-              1 лайк ({groupedImages.one.length})
+              1 like ({groupedImages.one.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {groupedImages.one.map((img) => (
@@ -124,10 +124,10 @@ export default function ResultsPage() {
             </div>
           </div>
 
-          {/* 2 лайка */}
+          {/* 2 likes */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <h2 className="mb-4 text-xl font-semibold text-white">
-              2 лайка ({groupedImages.two.length})
+              2 likes ({groupedImages.two.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">
               {groupedImages.two.map((img) => (
