@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight } from "lucide-react";
+import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
@@ -22,6 +22,13 @@ interface ServerInfo {
   disk?: { total?: string; used?: string; free?: string; percent?: string };
 }
 
+interface UploadProgress {
+  total: number;
+  uploaded: number;
+  failed: number;
+  errors: string[];
+}
+
 export default function AdminPage() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
@@ -36,6 +43,7 @@ export default function AdminPage() {
   }>({ isValid: false, message: "", checking: false });
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [creating, setCreating] = useState(false);
   const [reviewSetId, setReviewSetId] = useState<string | null>(null);
   const [clientLink, setClientLink] = useState<string | null>(null);
@@ -44,7 +52,6 @@ export default function AdminPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Функция для создания slug
@@ -52,7 +59,7 @@ export default function AdminPage() {
     return text
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9\\-_]/g, '-') // Поддерживаем дефисы и подчеркивания
+      .replace(/[^a-z0-9\\-_]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
   }
@@ -65,23 +72,22 @@ export default function AdminPage() {
       return { isValid: false, message: "" };
     }
 
-    // Проверка на английские буквы, цифры, дефисы, подчеркивания
     const englishOnly = /^[a-zA-Z0-9-_]+$/.test(trimmed);
     if (!englishOnly) {
       return {
         isValid: false,
-        message: "Только английские буквы, цифры, дефисы и подчеркивания",
+        message: "Only English letters, numbers, dashes and underscores",
       };
     }
 
     if (trimmed.length < 2) {
       return {
         isValid: false,
-        message: "Минимум 2 символа",
+        message: "Minimum 2 characters",
       };
     }
 
-    return { isValid: true, message: "Все ок" };
+    return { isValid: true, message: "OK" };
   }
 
   // Проверка уникальности через API
@@ -101,7 +107,7 @@ export default function AdminPage() {
       return;
     }
 
-    setTitleValidation({ isValid: false, message: "Проверка...", checking: true });
+    setTitleValidation({ isValid: false, message: "Checking...", checking: true });
 
     validationTimeoutRef.current = setTimeout(async () => {
       const slug = createSlug(title);
@@ -114,18 +120,18 @@ export default function AdminPage() {
         const data = await res.json();
         
         if (data.available) {
-          setTitleValidation({ isValid: true, message: "Все ок", checking: false });
+          setTitleValidation({ isValid: true, message: "OK", checking: false });
         } else {
           setTitleValidation({
             isValid: false,
-            message: "Проект с таким названием уже существует",
+            message: "Project with this name already exists",
             checking: false,
           });
         }
       } catch (error) {
         setTitleValidation({
           isValid: false,
-          message: "Ошибка проверки",
+          message: "Check error",
           checking: false,
         });
       }
@@ -157,7 +163,7 @@ export default function AdminPage() {
         setProjects([]);
         setLoadingProjects(false);
       });
-  }, [reviewSetId, clientLink]); // обновляем список после создания проекта/ссылки
+  }, [reviewSetId, clientLink]);
 
   useEffect(() => {
     fetch("/api/admin/server-info")
@@ -169,42 +175,76 @@ export default function AdminPage() {
       .catch(() => setLoadingServer(false));
   }, []);
 
-  async function handleFileUpload(files: FileList | null, isZip: boolean = false) {
+  async function handleFileUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (!reviewSetId) {
-      alert("Сначала создайте проект");
+      alert("Please create a project first");
       return;
     }
 
-    setUploading(true);
-    try {
-      if (isZip) {
-        const file = files[0];
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("reviewSetId", reviewSetId);
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
+    let uploaded = 0;
+    let failed = 0;
+    const errors: string[] = [];
 
-        const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
-        const data = await res.json();
-        if (data.success && data.files) {
-          for (const filePath of data.files) await addImageToDB(filePath);
-        } else alert(data.error || "Ошибка при загрузке ZIP");
-      } else {
-        for (const file of Array.from(files)) {
+    setUploading(true);
+    setUploadProgress({
+      total: totalFiles,
+      uploaded: 0,
+      failed: 0,
+      errors: [],
+    });
+
+    try {
+      for (const file of fileArray) {
+        const isZip = file.name.toLowerCase().endsWith('.zip');
+        
+        try {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("reviewSetId", reviewSetId);
+
           const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
           const data = await res.json();
-          if (data.success && data.filePath) await addImageToDB(data.filePath);
-          else alert(data.error || "Ошибка при загрузке файла");
+          
+          if (data.success) {
+            if (isZip && data.files) {
+              // ZIP файл - добавляем все файлы из архива
+              for (const filePath of data.files) {
+                await addImageToDB(filePath);
+              }
+              uploaded += data.files.length;
+            } else if (data.filePath) {
+              // Одиночный файл
+              await addImageToDB(data.filePath);
+              uploaded++;
+            }
+          } else {
+            failed++;
+            errors.push(`${file.name}: ${data.error || "Upload failed"}`);
+          }
+        } catch (error: any) {
+          failed++;
+          errors.push(`${file.name}: ${error.message || "Upload error"}`);
         }
+
+        setUploadProgress({
+          total: totalFiles,
+          uploaded,
+          failed,
+          errors: [...errors],
+        });
       }
     } catch (error) {
       console.error(error);
-      alert("Ошибка при загрузке файлов");
+      errors.push("General upload error");
     } finally {
       setUploading(false);
+      // Очищаем прогресс через 5 секунд
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 5000);
     }
   }
 
@@ -219,8 +259,6 @@ export default function AdminPage() {
       const data = await res.json();
       if (res.ok && data.id) {
         setImages((prev) => [...prev, filePath]);
-        const data = await res.json();
-        setImages((prev) => [...prev, data.filePath || data.url]);
       }
     } catch (e) {
       console.error(e);
@@ -242,15 +280,15 @@ export default function AdminPage() {
       if (res.ok && data.id) {
         setReviewSetId(data.id);
       } else {
-        alert(data.error || "Ошибка при создании проекта");
+        alert(data.error || "Error creating project");
         setTitleValidation({
           isValid: false,
-          message: data.error || "Ошибка при создании",
+          message: data.error || "Creation error",
           checking: false,
         });
       }
     } catch (error: any) {
-      alert(error.message || "Ошибка при создании проекта");
+      alert(error.message || "Error creating project");
     } finally {
       setCreating(false);
     }
@@ -258,7 +296,7 @@ export default function AdminPage() {
 
   async function generateLink() {
     if (!reviewSetId || images.length === 0) {
-      alert("Сначала загрузите фотографии");
+      alert("Please upload photos first");
       return;
     }
     try {
@@ -270,10 +308,10 @@ export default function AdminPage() {
         setAdminLink(`${baseUrl}/admin/results/${data.adminToken}`);
       } else {
         const errorData = await res.json();
-        alert(errorData.error || "Ошибка при создании ссылки");
+        alert(errorData.error || "Error creating link");
       }
     } catch (e) {
-      alert("Ошибка при создании ссылки");
+      alert("Error creating link");
     }
   }
 
@@ -286,7 +324,7 @@ export default function AdminPage() {
   function formatUptime(sec: number) {
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
-    return `${h}ч ${m}м`;
+    return `${h}h ${m}m`;
   }
 
   return (
@@ -297,22 +335,22 @@ export default function AdminPage() {
       </div>
 
       <div className="relative mx-auto max-w-4xl p-8">
-        <h1 className="mb-8 text-3xl font-bold text-white">Админ</h1>
+        <h1 className="mb-8 text-3xl font-bold text-white">Admin</h1>
 
-        {/* Сервер */}
+        {/* Server */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
             <Server className="h-5 w-5" />
-            Сервер
+            Server
           </h2>
           {loadingServer ? (
-            <div className="text-white/50">Загрузка...</div>
+            <div className="text-white/50">Loading...</div>
           ) : serverInfo ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Память</div>
+                <div className="text-xs text-white/50">Memory</div>
                 <div className="mt-1 font-mono text-sm text-white">
-                  {serverInfo.memory.usedMb} / {serverInfo.memory.totalMb} МБ ({serverInfo.memory.usedPercent}%)
+                  {serverInfo.memory.usedMb} / {serverInfo.memory.totalMb} MB ({serverInfo.memory.usedPercent}%)
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                   <div
@@ -322,22 +360,22 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Процесс (RSS)</div>
-                <div className="mt-1 font-mono text-sm text-white">{serverInfo.processMemory.rssMb} МБ</div>
+                <div className="text-xs text-white/50">Process (RSS)</div>
+                <div className="mt-1 font-mono text-sm text-white">{serverInfo.processMemory.rssMb} MB</div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Нагрузка (1 / 5 / 15 мин)</div>
+                <div className="text-xs text-white/50">Load (1 / 5 / 15 min)</div>
                 <div className="mt-1 font-mono text-sm text-white">
                   {serverInfo.load.map((l) => l.toFixed(2)).join(" / ")}
                 </div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Аптайм</div>
+                <div className="text-xs text-white/50">Uptime</div>
                 <div className="mt-1 font-mono text-sm text-white">{formatUptime(serverInfo.uptimeSeconds)}</div>
               </div>
               {serverInfo.disk && (serverInfo.disk.total || serverInfo.disk.used) && (
                 <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs text-white/50">Диск</div>
+                  <div className="text-xs text-white/50">Disk</div>
                   <div className="mt-1 font-mono text-sm text-white">
                     {serverInfo.disk.used} / {serverInfo.disk.total} ({serverInfo.disk.percent})
                   </div>
@@ -345,21 +383,21 @@ export default function AdminPage() {
               )}
             </div>
           ) : (
-            <div className="text-white/50">Данные недоступны</div>
+            <div className="text-white/50">Data unavailable</div>
           )}
         </div>
 
-        {/* Список проектов */}
+        {/* Projects List */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
             <FolderOpen className="h-5 w-5" />
-            Проекты
+            Projects
           </h2>
           {loadingProjects ? (
-            <div className="text-white/50">Загрузка...</div>
+            <div className="text-white/50">Loading...</div>
           ) : projects.length === 0 ? (
             <div className="rounded-lg border border-dashed border-white/10 p-6 text-center text-white/50">
-              Нет проектов. Создайте новый ниже.
+              No projects. Create a new one below.
             </div>
           ) : (
             <ul className="space-y-2">
@@ -372,7 +410,7 @@ export default function AdminPage() {
                     <div>
                       <div className="font-medium">{p.title}</div>
                       <div className="text-xs text-white/50">
-                        {p._count.images} фото · {p._count.links} ссылок · {new Date(p.createdAt).toLocaleDateString()}
+                        {p._count.images} photos · {p._count.links} links · {new Date(p.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                     <ChevronRight className="h-5 w-5 text-white/50" />
@@ -383,7 +421,7 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Создать новый проект */}
+        {/* Create New Project */}
         <div className="rounded-lg border border-white/10 bg-white/5 p-6">
           <button
             type="button"
@@ -392,7 +430,7 @@ export default function AdminPage() {
           >
             <span className="flex items-center gap-2">
               <Plus className="h-5 w-5" />
-              Создать новый проект
+              Create New Project
             </span>
             <span className="text-white/50">{showCreateForm ? "−" : "+"}</span>
           </button>
@@ -400,12 +438,12 @@ export default function AdminPage() {
           {showCreateForm && (
             <>
               <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-white/80">Название проекта</label>
+                <label className="mb-2 block text-sm font-medium text-white/80">Project Name</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="my-project (только английские буквы, цифры, дефисы)"
+                  placeholder="my-project (English letters, numbers, dashes only)"
                   disabled={!!reviewSetId}
                   className={`w-full rounded-md border-2 ${borderColor} bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 ${
                     titleValidation.isValid && !reviewSetId
@@ -426,7 +464,7 @@ export default function AdminPage() {
                           : "text-red-400"
                     }`}
                   >
-                    {titleValidation.message || "Введите название"}
+                    {titleValidation.message || "Enter project name"}
                   </div>
                 )}
                 {!reviewSetId && (
@@ -435,7 +473,7 @@ export default function AdminPage() {
                     disabled={creating || !titleValidation.isValid}
                     className="mt-3 bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
                   >
-                    {creating ? "Создание..." : "Создать проект"}
+                    {creating ? "Creating..." : "Create Project"}
                   </Button>
                 )}
               </div>
@@ -444,46 +482,55 @@ export default function AdminPage() {
                 <>
                   <div className="mb-6">
                     <h3 className="mb-4 text-lg font-semibold text-white">
-                      Загрузить фотографии ({images.length})
+                      Upload Photos ({images.length})
                     </h3>
-                    <div className="mb-4 flex gap-4">
-                      <div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => handleFileUpload(e.target.files)}
-                        />
-                        <Button
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploading}
-                          className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Выбрать файлы
-                        </Button>
-                      </div>
-                      <div>
-                        <input
-                          ref={zipInputRef}
-                          type="file"
-                          accept=".zip"
-                          className="hidden"
-                          onChange={(e) => handleFileUpload(e.target.files, true)}
-                        />
-                        <Button
-                          onClick={() => zipInputRef.current?.click()}
-                          disabled={uploading}
-                          className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          ZIP архив
-                        </Button>
-                      </div>
+                    <div className="mb-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.zip"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                      />
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Photos or ZIP Archive
+                      </Button>
                     </div>
-                    {uploading && <div className="text-white/60">Загрузка...</div>}
+
+                    {/* Upload Progress */}
+                    {uploadProgress && (
+                      <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-4">
+                        <div className="mb-2 flex items-center justify-between text-sm text-white">
+                          <span>Uploading: {uploadProgress.uploaded} / {uploadProgress.total}</span>
+                          {uploadProgress.failed > 0 && (
+                            <span className="text-red-400">Failed: {uploadProgress.failed}</span>
+                          )}
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-emerald-500/80 transition-all"
+                            style={{ width: `${(uploadProgress.uploaded / uploadProgress.total) * 100}%` }}
+                          />
+                        </div>
+                        {uploadProgress.errors.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            {uploadProgress.errors.map((error, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs text-red-400">
+                                <X className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                <span>{error}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {images.length > 0 && (
                       <div className="mt-4 grid grid-cols-4 gap-2">
                         {images.map((img, idx) => (
@@ -499,7 +546,7 @@ export default function AdminPage() {
                     <div className="mb-6">
                       <Button onClick={generateLink} className="bg-white/10 text-white hover:bg-white/20">
                         <LinkIcon className="mr-2 h-4 w-4" />
-                        Сформировать ссылку
+                        Generate Link
                       </Button>
                     </div>
                   )}
@@ -507,7 +554,7 @@ export default function AdminPage() {
                   {clientLink && (
                     <div className="space-y-3">
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-white/80">Ссылка для клиента</label>
+                        <label className="mb-2 block text-sm font-medium text-white/80">Client Link</label>
                         <div className="flex gap-2">
                           <input
                             type="text"
@@ -521,7 +568,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-white/80">Результаты (админ)</label>
+                        <label className="mb-2 block text-sm font-medium text-white/80">Results (Admin)</label>
                         <div className="flex gap-2">
                           <input
                             type="text"
