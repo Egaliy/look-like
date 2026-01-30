@@ -42,11 +42,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  // Создаем новый PrismaClient для каждого запроса, чтобы избежать проблем с prepared statements
   const { PrismaClient } = await import('@prisma/client');
   const prismaInstance = new PrismaClient();
   
   try {
+    // Перезапускаем соединение для очистки prepared statements
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const body = await request.json();
     const { title, description } = body;
 
