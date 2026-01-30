@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
 export async function GET() {
   const { PrismaClient } = await import('@prisma/client');
   const prismaInstance = new PrismaClient();
   
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const reviewSets = await prismaInstance.reviewSet.findMany({
       include: {
         _count: {

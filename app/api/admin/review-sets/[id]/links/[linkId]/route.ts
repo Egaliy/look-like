@@ -9,6 +9,9 @@ export async function DELETE(
   const prismaInstance = new PrismaClient();
   
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     // Проверяем, что ссылка принадлежит проекту
     const link = await prismaInstance.reviewLink.findUnique({
       where: { id: params.linkId },

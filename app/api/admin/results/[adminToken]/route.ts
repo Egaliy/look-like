@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { adminToken: string } }
 ) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
-    const reviewLink = await prisma.reviewLink.findUnique({
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
+    const reviewLink = await prismaInstance.reviewLink.findUnique({
       where: { adminToken: params.adminToken },
       include: {
         reviewSet: {
@@ -47,11 +53,13 @@ export async function GET(
     return NextResponse.json({
       images,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching results:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }

@@ -9,6 +9,9 @@ export async function GET(
   const prismaInstance = new PrismaClient();
   
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const reviewSet = await prismaInstance.reviewSet.findUnique({
       where: { id: params.id },
       include: {

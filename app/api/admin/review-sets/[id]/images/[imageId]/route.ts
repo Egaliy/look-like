@@ -9,6 +9,9 @@ export async function DELETE(
   const prismaInstance = new PrismaClient();
   
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     // Проверяем, что изображение принадлежит проекту
     const image = await prismaInstance.imageAsset.findUnique({
       where: { id: params.imageId },

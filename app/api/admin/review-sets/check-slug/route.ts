@@ -16,12 +16,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ available: false, error: "Slug is required" });
     }
 
-    const existing = await prismaInstance.reviewSet.findFirst({
-      where: {
-        slug: slug,
-        ...(excludeId ? { id: { not: excludeId } } : {}),
-      },
-    });
+    // Используем findUnique для slug, так как он уникален
+    let existing = null;
+    try {
+      existing = await prismaInstance.reviewSet.findUnique({
+        where: { slug: slug },
+      });
+      
+      // Если нашли и нужно исключить определенный ID
+      if (existing && excludeId && existing.id === excludeId) {
+        existing = null; // Считаем что slug доступен для этого проекта
+      }
+    } catch (e) {
+      // Если slug не найден, это нормально - значит доступен
+      existing = null;
+    }
 
     return NextResponse.json({
       available: !existing,
