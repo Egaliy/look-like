@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; linkId: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
     // Проверяем, что ссылка принадлежит проекту
-    const link = await prismaInstance.reviewLink.findUnique({
+    const link = await prisma.reviewLink.findUnique({
       where: { id: params.linkId },
     });
 
@@ -24,7 +18,7 @@ export async function DELETE(
       );
     }
 
-    await prismaInstance.reviewLink.delete({
+    await prisma.reviewLink.delete({
       where: { id: params.linkId },
     });
 
@@ -35,7 +29,5 @@ export async function DELETE(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { adminToken: string; clientId: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
     // Находим ссылку по adminToken
-    const reviewLink = await prismaInstance.reviewLink.findUnique({
+    const reviewLink = await prisma.reviewLink.findUnique({
       where: { adminToken: params.adminToken },
     });
 
@@ -25,7 +19,7 @@ export async function DELETE(
     }
 
     // Удаляем все оценки этого клиента для этой ссылки
-    const result = await prismaInstance.rating.deleteMany({
+    const result = await prisma.rating.deleteMany({
       where: {
         reviewLinkId: reviewLink.id,
         clientId: params.clientId,
@@ -42,7 +36,5 @@ export async function DELETE(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

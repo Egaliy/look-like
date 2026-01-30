@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    const reviewSet = await prismaInstance.reviewSet.findUnique({
+    const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
       include: {
         images: {
@@ -67,8 +64,6 @@ export async function GET(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }
 
@@ -76,11 +71,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    const reviewSet = await prismaInstance.reviewSet.findUnique({
+    const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
       include: {
         images: true,
@@ -109,7 +101,7 @@ export async function DELETE(
     }
 
     // Удаляем проект (каскадно удалятся все связанные данные)
-    await prismaInstance.reviewSet.delete({
+    await prisma.reviewSet.delete({
       where: { id: params.id },
     });
 
@@ -120,7 +112,5 @@ export async function DELETE(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

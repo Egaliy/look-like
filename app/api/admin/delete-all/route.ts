@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
-  // Используем pooling connection (проблема с prepared statements решается перезапуском)
-  const prisma = new PrismaClient();
-  
   try {
-    // Перезапускаем соединение для очистки prepared statements
-    await prisma.$disconnect();
-    await prisma.$connect();
-    
     // Удаляем через обычные методы Prisma с задержками
     await new Promise(resolve => setTimeout(resolve, 100));
     await prisma.rating.deleteMany();
@@ -30,7 +23,5 @@ export async function POST(request: NextRequest) {
       { error: error.message || "Failed to delete projects" },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

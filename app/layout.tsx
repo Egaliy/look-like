@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Look Like - Reference Review",
+  title: "Like That - Reference Review",
   description: "Swipe-based reference review app",
 };
 

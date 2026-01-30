@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; imageId: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
     // Проверяем, что изображение принадлежит проекту
-    const image = await prismaInstance.imageAsset.findUnique({
+    const image = await prisma.imageAsset.findUnique({
       where: { id: params.imageId },
     });
 
@@ -36,7 +30,7 @@ export async function DELETE(
       }
     }
 
-    await prismaInstance.imageAsset.delete({
+    await prisma.imageAsset.delete({
       where: { id: params.imageId },
     });
 
@@ -47,7 +41,5 @@ export async function DELETE(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

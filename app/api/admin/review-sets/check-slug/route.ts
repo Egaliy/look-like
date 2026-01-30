@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
     const body = await request.json();
     const { slug, excludeId } = body;
 
@@ -19,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Используем findUnique для slug, так как он уникален
     let existing = null;
     try {
-      existing = await prismaInstance.reviewSet.findUnique({
+      existing = await prisma.reviewSet.findUnique({
         where: { slug: slug },
       });
       
@@ -41,7 +35,5 @@ export async function POST(request: NextRequest) {
       { available: false, error: error.message },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

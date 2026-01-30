@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
-    const reviewSets = await prismaInstance.reviewSet.findMany({
+    const reviewSets = await prisma.reviewSet.findMany({
       include: {
         _count: {
           select: {
@@ -60,8 +54,6 @@ export async function GET() {
   } catch (error: any) {
     console.error("Error fetching review sets:", error);
     return NextResponse.json([]);
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }
 
@@ -76,13 +68,7 @@ function createSlug(title: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
     const body = await request.json();
     const { title, description, slug } = body;
 
@@ -104,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Проверяем уникальность slug
-    const existing = await prismaInstance.reviewSet.findUnique({
+    const existing = await prisma.reviewSet.findUnique({
       where: { slug: finalSlug },
     });
 
@@ -115,7 +101,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reviewSet = await prismaInstance.reviewSet.create({
+    const reviewSet = await prisma.reviewSet.create({
       data: {
         title,
         slug: finalSlug,
@@ -146,7 +132,5 @@ export async function POST(request: NextRequest) {
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }

@@ -1,4 +1,4 @@
-# Look Like - Swipe-based Reference Review
+# Like That - Swipe-based Reference Review
 
 Tinder-like веб-приложение для оценки визуальных референсов клиентами.
 

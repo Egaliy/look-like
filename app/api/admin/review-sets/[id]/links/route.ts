@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { PrismaClient } = await import('@prisma/client');
-  const prismaInstance = new PrismaClient();
-  
   try {
-    await prismaInstance.$disconnect();
-    await prismaInstance.$connect();
-    
-    const reviewSet = await prismaInstance.reviewSet.findUnique({
+    const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
     });
 
@@ -43,7 +37,7 @@ export async function POST(
       }
       
       // Используем fallback slug
-      const existingLink = await prismaInstance.reviewLink.findUnique({
+      const existingLink = await prisma.reviewLink.findUnique({
         where: { token: fallbackSlug },
       });
 
@@ -64,7 +58,7 @@ export async function POST(
       // Создаем ссылку с fallback slug
       const adminToken = randomBytes(16).toString('hex');
       try {
-        const link = await prismaInstance.reviewLink.create({
+        const link = await prisma.reviewLink.create({
           data: {
             reviewSetId: params.id,
             token: fallbackSlug,
@@ -87,7 +81,7 @@ export async function POST(
         });
       } catch (createError: any) {
         if (createError.message?.includes('adminToken') || createError.message?.includes('admin_token')) {
-          const link = await prismaInstance.reviewLink.create({
+          const link = await prisma.reviewLink.create({
             data: {
               reviewSetId: params.id,
               token: fallbackSlug,
@@ -113,7 +107,7 @@ export async function POST(
     }
 
     // Проверяем, не существует ли уже ссылка с таким token
-    const existingLink = await prismaInstance.reviewLink.findUnique({
+    const existingLink = await prisma.reviewLink.findUnique({
       where: { token: slug },
     });
 
@@ -135,7 +129,7 @@ export async function POST(
     const adminToken = randomBytes(16).toString('hex');
 
     try {
-      const link = await prismaInstance.reviewLink.create({
+      const link = await prisma.reviewLink.create({
         data: {
           reviewSetId: params.id,
           token: slug, // Используем slug как token
@@ -161,7 +155,7 @@ export async function POST(
       // Если ошибка из-за отсутствия колонки adminToken, пробуем без неё
       if (createError.message?.includes('adminToken') || createError.message?.includes('admin_token')) {
         console.warn("adminToken column missing, creating link without it");
-        const link = await prismaInstance.reviewLink.create({
+        const link = await prisma.reviewLink.create({
           data: {
             reviewSetId: params.id,
             token: slug,
@@ -190,7 +184,5 @@ export async function POST(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prismaInstance.$disconnect();
   }
 }
