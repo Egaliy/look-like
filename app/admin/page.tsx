@@ -290,19 +290,32 @@ export default function AdminPage() {
       if (res.ok && data.id) {
         setReviewSetId(data.id);
         
-        // Автоматически создаем ссылку и копируем её
-        const slug = createSlug(title);
-        const baseUrl = window.location.origin;
-        const projectUrl = `${baseUrl}/r/${slug}`;
-        
-        // Копируем ссылку в буфер обмена
-        navigator.clipboard.writeText(projectUrl);
-        
-        // Показываем сообщение
-        alert(`Project created! Address copied to clipboard: ${projectUrl}`);
-        
-        // Устанавливаем ссылку для отображения
-        setClientLink(projectUrl);
+        // Автоматически создаем ссылку
+        try {
+          const linkRes = await fetch(`/api/admin/review-sets/${data.id}/links`, { method: "POST" });
+          if (linkRes.ok) {
+            const linkData = await linkRes.json();
+            const baseUrl = window.location.origin;
+            const projectUrl = `${baseUrl}/r/${linkData.token}`;
+            const adminUrl = linkData.adminToken ? `${baseUrl}/admin/results/${linkData.adminToken}` : null;
+            
+            // Копируем ссылку в буфер обмена
+            navigator.clipboard.writeText(projectUrl);
+            
+            // Показываем сообщение
+            alert(`Project created! Address copied to clipboard: ${projectUrl}`);
+            
+            // Устанавливаем ссылки для отображения
+            setClientLink(projectUrl);
+            setAdminLink(adminUrl);
+          } else {
+            // Если не удалось создать ссылку, все равно показываем что проект создан
+            alert("Project created, but failed to create link. You can create it manually later.");
+          }
+        } catch (linkError) {
+          console.error("Error creating link:", linkError);
+          alert("Project created, but failed to create link. You can create it manually later.");
+        }
       } else {
         alert(data.error || "Error creating project");
         setTitleValidation({
