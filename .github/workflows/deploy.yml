@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,6 +26,10 @@ jobs:
             set -e
             PROJECT_PATH="${{ secrets.VPS_PROJECT_PATH || '/var/www/look-like' }}"
             cd "$PROJECT_PATH"
+            if [ ! -f .env ]; then
+              echo "❌ Файл .env отсутствует! Создайте его на сервере (DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET) и повторите деплой."
+              exit 1
+            fi
             echo "📦 Pulling latest changes..."
             git fetch origin
             git reset --hard origin/main
@@ -36,4 +44,9 @@ jobs:
             npm run build
             echo "🔄 Restarting application..."
             pm2 restart look-like || pm2 start npm --name "look-like" -- start
-            echo "✅ Deployment completed successfully!"
+            sleep 5
+            if curl -sf -o /dev/null --connect-timeout 10 http://127.0.0.1:3000/admin; then
+              echo "✅ Deployment completed successfully! App responds on :3000"
+            else
+              echo "⚠️ App may not be ready. Check: pm2 logs look-like"
+            fi
