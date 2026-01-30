@@ -60,6 +60,7 @@ export default function ReviewSetPage() {
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const linkCreatedRef = useRef(false);
 
   function loadData() {
     fetch(`/api/admin/review-sets/${params.id}`)
@@ -94,7 +95,23 @@ export default function ReviewSetPage() {
 
   useEffect(() => {
     loadData();
+    linkCreatedRef.current = false; // Сбрасываем при загрузке новой страницы
   }, [params.id]);
+
+  // Автоматически создаем ссылку, если её нет и есть изображения
+  useEffect(() => {
+    if (
+      reviewSet && 
+      reviewSet.images && 
+      reviewSet.images.length > 0 && 
+      (!reviewSet.links || reviewSet.links.length === 0) && 
+      !generatingLink &&
+      !linkCreatedRef.current
+    ) {
+      linkCreatedRef.current = true;
+      generateLink();
+    }
+  }, [reviewSet, generatingLink]);
 
   async function addImage() {
     if (!newImageUrl.trim()) return;
@@ -297,13 +314,16 @@ export default function ReviewSetPage() {
       });
 
       if (res.ok) {
+        linkCreatedRef.current = true;
         loadData();
       } else {
         const data = await res.json();
         alert(data.error || "Error creating link");
+        linkCreatedRef.current = false;
       }
     } catch (error) {
       alert("Error creating link");
+      linkCreatedRef.current = false;
     } finally {
       setGeneratingLink(false);
     }
@@ -347,7 +367,36 @@ export default function ReviewSetPage() {
             ← Admin
           </button>
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-white">{reviewSet.title}</h1>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-white">{reviewSet.title}</h1>
+              {reviewSet.links && reviewSet.links.length > 0 && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-white/60">Link:</span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/r/${reviewSet.links[0].token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-sm text-emerald-400 hover:text-emerald-300 underline"
+                    >
+                      {typeof window !== "undefined" ? `${window.location.origin}/r/${reviewSet.links[0].token}` : `/r/${reviewSet.links[0].token}`}
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const url = typeof window !== "undefined" ? `${window.location.origin}/r/${reviewSet.links[0].token}` : `/r/${reviewSet.links[0].token}`;
+                        navigator.clipboard.writeText(url);
+                        alert("Link copied!");
+                      }}
+                      className="h-6 w-6 p-0 text-white/60 hover:text-white hover:bg-white/10"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => setShowStats(!showStats)}
