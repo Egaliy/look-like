@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+import { randomBytes } from "crypto";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
-    // Проверяем, что review set существует
-    const reviewSet = await prisma.reviewSet.findUnique({
+    const reviewSet = await prismaInstance.reviewSet.findUnique({
       where: { id: params.id },
     });
 
@@ -18,9 +21,13 @@ export async function POST(
       );
     }
 
-    const link = await prisma.reviewLink.create({
+    // Генерируем adminToken вручную, если БД не поддерживает default
+    const adminToken = randomBytes(16).toString('hex');
+
+    const link = await prismaInstance.reviewLink.create({
       data: {
         reviewSetId: params.id,
+        adminToken: adminToken,
         maxSessions: 1,
         allowResume: true,
         expiresAt: null,
@@ -30,7 +37,7 @@ export async function POST(
     return NextResponse.json({
       id: link.id,
       token: link.token,
-      adminToken: link.adminToken,
+      adminToken: (link as any).adminToken || adminToken,
       reviewSetId: link.reviewSetId,
       maxSessions: link.maxSessions,
       allowResume: link.allowResume,
@@ -38,11 +45,44 @@ export async function POST(
       createdAt: link.createdAt.toISOString(),
       updatedAt: link.updatedAt.toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating link:", error);
+    
+    // Если ошибка из-за отсутствия колонки, пробуем без adminToken
+    if (error.message?.includes('adminToken')) {
+      try {
+        const link = await prismaInstance.reviewLink.create({
+          data: {
+            reviewSetId: params.id,
+            maxSessions: 1,
+            allowResume: true,
+            expiresAt: null,
+          },
+        });
+        return NextResponse.json({
+          id: link.id,
+          token: link.token,
+          adminToken: null,
+          reviewSetId: link.reviewSetId,
+          maxSessions: link.maxSessions,
+          allowResume: link.allowResume,
+          expiresAt: link.expiresAt?.toISOString() || null,
+          createdAt: link.createdAt.toISOString(),
+          updatedAt: link.updatedAt.toISOString(),
+        });
+      } catch (e2: any) {
+        return NextResponse.json(
+          { error: e2.message || "Internal server error" },
+          { status: 500 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }
