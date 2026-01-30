@@ -113,15 +113,25 @@ export default function AdminPage() {
       return;
     }
 
+    // Сначала проверяем базовую валидацию (русские буквы, формат и т.д.)
     const validation = validateTitle(title);
     if (!validation.isValid) {
+      // Если базовая валидация не прошла, сразу устанавливаем ошибку
       setTitleValidation({ ...validation, checking: false });
       return;
     }
 
+    // Только если базовая валидация прошла, проверяем уникальность
     setTitleValidation({ isValid: false, message: "Checking...", checking: true });
 
     validationTimeoutRef.current = setTimeout(async () => {
+      // Повторно проверяем базовую валидацию перед запросом к API
+      const revalidation = validateTitle(title);
+      if (!revalidation.isValid) {
+        setTitleValidation({ ...revalidation, checking: false });
+        return;
+      }
+
       const slug = createSlug(title);
       try {
         const res = await fetch("/api/admin/review-sets/check-slug", {
@@ -158,11 +168,11 @@ export default function AdminPage() {
 
   const borderColor = reviewSetId
     ? "border-white/10"
-    : titleValidation.isValid
-      ? "border-green-500/50 focus:border-green-500"
-      : title.length > 0 && !titleValidation.checking
-        ? "border-red-500/50 focus:border-red-500"
-        : "border-white/10";
+    : title.length > 0 && !titleValidation.checking
+      ? titleValidation.isValid
+        ? "border-green-500/50 focus:border-green-500"
+        : "border-red-500/50 focus:border-red-500"
+      : "border-white/10";
 
   function loadProjects() {
     fetch("/api/admin/review-sets")
