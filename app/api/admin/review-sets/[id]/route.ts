@@ -70,3 +70,56 @@ export async function GET(
     await prismaInstance.$disconnect();
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
+  try {
+    const reviewSet = await prismaInstance.reviewSet.findUnique({
+      where: { id: params.id },
+      include: {
+        images: true,
+      },
+    });
+
+    if (!reviewSet) {
+      return NextResponse.json(
+        { error: "Review set not found" },
+        { status: 404 }
+      );
+    }
+
+    // Удаляем файлы с диска
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    for (const img of reviewSet.images) {
+      if (img.filePath) {
+        try {
+          const filePath = path.join(process.cwd(), 'public', img.filePath);
+          await fs.unlink(filePath).catch(() => {});
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+      }
+    }
+
+    // Удаляем проект (каскадно удалятся все связанные данные)
+    await prismaInstance.reviewSet.delete({
+      where: { id: params.id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting review set:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  } finally {
+    await prismaInstance.$disconnect();
+  }
+}
