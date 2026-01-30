@@ -18,7 +18,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd ${{ secrets.VPS_PROJECT_PATH || '/var/www/like-that' }}
+            cd ${{ secrets.VPS_PROJECT_PATH || '/var/www/look-like' }}
             echo "📦 Pulling latest changes..."
             git pull origin main
             echo "📥 Installing dependencies..."
@@ -30,5 +30,5 @@ jobs:
             echo "🏗️ Building application..."
             npm run build
             echo "🔄 Restarting application..."
-            pm2 restart like-that || pm2 start npm --name "like-that" -- start
+            pm2 restart look-like || pm2 start npm --name "look-like" -- start
             echo "✅ Deployment completed successfully!"
