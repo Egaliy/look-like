@@ -72,11 +72,21 @@ export default function AdminPage() {
       return { isValid: false, message: "" };
     }
 
+    // Проверка на русские буквы
+    const hasRussian = /[а-яёА-ЯЁ]/.test(trimmed);
+    if (hasRussian) {
+      return {
+        isValid: false,
+        message: "Russian letters are not allowed. Name is used as URL",
+      };
+    }
+
+    // Проверка на английские буквы, цифры, дефисы, подчеркивания
     const englishOnly = /^[a-zA-Z0-9-_]+$/.test(trimmed);
     if (!englishOnly) {
       return {
         isValid: false,
-        message: "Only English letters, numbers, dashes and underscores",
+        message: "Only English letters, numbers, dashes and underscores allowed",
       };
     }
 
@@ -124,7 +134,7 @@ export default function AdminPage() {
         } else {
           setTitleValidation({
             isValid: false,
-            message: "Project with this name already exists",
+            message: "This URL is already taken",
             checking: false,
           });
         }
@@ -279,6 +289,20 @@ export default function AdminPage() {
       const data = await res.json();
       if (res.ok && data.id) {
         setReviewSetId(data.id);
+        
+        // Автоматически создаем ссылку и копируем её
+        const slug = createSlug(title);
+        const baseUrl = window.location.origin;
+        const projectUrl = `${baseUrl}/r/${slug}`;
+        
+        // Копируем ссылку в буфер обмена
+        navigator.clipboard.writeText(projectUrl);
+        
+        // Показываем сообщение
+        alert(`Project created! Address copied to clipboard: ${projectUrl}`);
+        
+        // Устанавливаем ссылку для отображения
+        setClientLink(projectUrl);
       } else {
         alert(data.error || "Error creating project");
         setTitleValidation({
@@ -304,8 +328,13 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         const baseUrl = window.location.origin;
-        setClientLink(`${baseUrl}/r/${data.token}`);
+        const linkUrl = `${baseUrl}/r/${data.token}`;
+        setClientLink(linkUrl);
         setAdminLink(`${baseUrl}/admin/results/${data.adminToken}`);
+        
+        // Копируем ссылку в буфер обмена
+        navigator.clipboard.writeText(linkUrl);
+        alert(`Link created! Address copied to clipboard: ${linkUrl}`);
       } else {
         const errorData = await res.json();
         alert(errorData.error || "Error creating link");
@@ -455,17 +484,27 @@ export default function AdminPage() {
                   onKeyPress={(e) => e.key === "Enter" && !reviewSetId && titleValidation.isValid && createProject()}
                 />
                 {title.length > 0 && !reviewSetId && (
-                  <div
-                    className={`mt-2 text-xs ${
-                      titleValidation.isValid
-                        ? "text-green-400"
-                        : titleValidation.checking
-                          ? "text-white/50"
-                          : "text-red-400"
-                    }`}
-                  >
-                    {titleValidation.message || "Enter project name"}
-                  </div>
+                  <>
+                    <div
+                      className={`mt-2 text-xs ${
+                        titleValidation.isValid
+                          ? "text-green-400"
+                          : titleValidation.checking
+                            ? "text-white/50"
+                            : "text-red-400"
+                      }`}
+                    >
+                      {titleValidation.message || "Enter project name"}
+                    </div>
+                    {titleValidation.isValid && !titleValidation.checking && (
+                      <div className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+                        <div className="text-xs text-green-400 mb-1">Project will be available at:</div>
+                        <div className="font-mono text-sm text-green-300 break-all">
+                          {typeof window !== "undefined" ? `${window.location.origin}/r/${createSlug(title)}` : ""}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 {!reviewSetId && (
                   <Button
