@@ -17,23 +17,44 @@ export async function GET() {
             links: true,
           },
         },
+        links: {
+          take: 1,
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        images: {
+          include: {
+            ratings: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    const result = reviewSets.map((set) => ({
-      id: set.id,
-      title: set.title,
-      description: set.description,
-      createdAt: set.createdAt.toISOString(),
-      updatedAt: set.updatedAt.toISOString(),
-      _count: {
-        images: set._count.images,
-        links: set._count.links,
-      },
-    }));
+    const result = reviewSets.map((set) => {
+      // Подсчитываем общее количество оценок
+      const totalRatings = set.images.reduce((sum, img) => sum + img.ratings.length, 0);
+      
+      return {
+        id: set.id,
+        title: set.title,
+        description: set.description,
+        createdAt: set.createdAt.toISOString(),
+        updatedAt: set.updatedAt.toISOString(),
+        _count: {
+          images: set._count.images,
+          links: set._count.links,
+          ratings: totalRatings,
+        },
+        firstLink: set.links.length > 0 ? {
+          token: set.links[0].token,
+          adminToken: set.links[0].adminToken || null,
+        } : null,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error: any) {

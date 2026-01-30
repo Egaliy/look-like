@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X } from "lucide-react";
+import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
@@ -11,7 +11,8 @@ interface ProjectItem {
   description: string | null;
   createdAt: string;
   updatedAt: string;
-  _count: { images: number; links: number };
+  _count: { images: number; links: number; ratings: number };
+  firstLink: { token: string; adminToken: string | null } | null;
 }
 
 interface ServerInfo {
@@ -50,6 +51,7 @@ export default function AdminPage() {
   const [adminLink, setAdminLink] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -162,7 +164,7 @@ export default function AdminPage() {
         ? "border-red-500/50 focus:border-red-500"
         : "border-white/10";
 
-  useEffect(() => {
+  function loadProjects() {
     fetch("/api/admin/review-sets")
       .then((res) => res.json())
       .then((data) => {
@@ -173,7 +175,11 @@ export default function AdminPage() {
         setProjects([]);
         setLoadingProjects(false);
       });
-  }, [reviewSetId, clientLink]);
+  }
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/server-info")
@@ -445,18 +451,72 @@ export default function AdminPage() {
             <ul className="space-y-2">
               {projects.map((p) => (
                 <li key={p.id}>
-                  <Link
-                    href={`/admin/review-sets/${p.id}`}
-                    className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 p-4 text-white transition hover:bg-white/5"
-                  >
-                    <div>
-                      <div className="font-medium">{p.title}</div>
-                      <div className="text-xs text-white/50">
-                        {p._count.images} photos · {p._count.links} links · {new Date(p.createdAt).toLocaleDateString()}
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 p-4 text-white transition hover:bg-white/5">
+                    <Link
+                      href={`/admin/review-sets/${p.id}`}
+                      className="flex-1"
+                    >
+                      <div>
+                        <div className="font-medium">{p.title}</div>
+                        <div className="text-xs text-white/50">
+                          {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · {new Date(p.createdAt).toLocaleDateString()}
+                        </div>
                       </div>
+                    </Link>
+                    <div className="flex items-center gap-2 ml-4">
+                      {p.firstLink && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const url = typeof window !== "undefined" ? `${window.location.origin}/r/${p.firstLink!.token}` : `/r/${p.firstLink!.token}`;
+                            navigator.clipboard.writeText(url);
+                            setCopied(p.id);
+                            setTimeout(() => setCopied(null), 2000);
+                          }}
+                          className="text-white/60 hover:text-white hover:bg-white/10"
+                        >
+                          {copied === p.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!confirm(`Delete project "${p.title}"? This action cannot be undone!`)) return;
+                          
+                          setDeletingProject(p.id);
+                          try {
+                            const res = await fetch(`/api/admin/review-sets/${p.id}`, {
+                              method: "DELETE",
+                            });
+                            
+                            if (res.ok) {
+                              loadProjects();
+                            } else {
+                              const data = await res.json();
+                              alert(data.error || "Error deleting project");
+                            }
+                          } catch (error) {
+                            alert("Error deleting project");
+                          } finally {
+                            setDeletingProject(null);
+                          }
+                        }}
+                        disabled={deletingProject === p.id}
+                        className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Link href={`/admin/review-sets/${p.id}`}>
+                        <ChevronRight className="h-5 w-5 text-white/50" />
+                      </Link>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-white/50" />
-                  </Link>
+                  </div>
                 </li>
               ))}
             </ul>
