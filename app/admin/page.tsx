@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X, Trash2 } from "lucide-react";
+import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X, Trash2, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
@@ -23,6 +23,12 @@ interface ServerInfo {
   disk?: { total?: string; used?: string; free?: string; percent?: string };
 }
 
+interface HealthCheck {
+  ok: boolean;
+  checks: Record<string, { ok: boolean; message: string; detail?: string }>;
+  timestamp: string;
+}
+
 interface UploadProgress {
   total: number;
   uploaded: number;
@@ -33,8 +39,10 @@ interface UploadProgress {
 export default function AdminPage() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [health, setHealth] = useState<HealthCheck | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingServer, setLoadingServer] = useState(true);
+  const [loadingHealth, setLoadingHealth] = useState(true);
 
   const [title, setTitle] = useState("");
   const [titleValidation, setTitleValidation] = useState<{
@@ -195,10 +203,20 @@ export default function AdminPage() {
     fetch("/api/admin/server-info")
       .then((res) => res.json())
       .then((data) => {
-        setServerInfo(data);
+        if (data && !("error" in data) && data.memory) setServerInfo(data);
         setLoadingServer(false);
       })
       .catch(() => setLoadingServer(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/health")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.ok === "boolean" && data.checks) setHealth(data);
+        setLoadingHealth(false);
+      })
+      .catch(() => setLoadingHealth(false));
   }, []);
 
   async function handleFileUpload(files: FileList | null) {
@@ -394,6 +412,36 @@ export default function AdminPage() {
 
       <div className="relative mx-auto max-w-4xl p-8">
         <h1 className="mb-8 text-3xl font-bold text-white">Admin</h1>
+
+        {/* Диагностика сервисов */}
+        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
+            <Activity className="h-5 w-5" />
+            Проверка сервисов
+          </h2>
+          {loadingHealth ? (
+            <div className="text-white/50">Загрузка...</div>
+          ) : health ? (
+            <div className="space-y-3">
+              <div className={`mb-3 rounded-lg px-3 py-1.5 text-sm font-medium ${health.ok ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                {health.ok ? "Всё работает" : "Есть проблемы — проверьте детали ниже"}
+              </div>
+              {Object.entries(health.checks).map(([key, c]) => (
+                <div key={key} className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div>
+                    <span className="font-medium capitalize text-white">{key.replace(/_/g, " ")}</span>
+                    <span className={c.ok ? " text-emerald-400" : " text-red-400"}> — {c.message}</span>
+                    {c.detail && <div className="mt-1 text-xs text-white/60">{c.detail}</div>}
+                  </div>
+                  <span className={c.ok ? "text-emerald-400" : "text-red-400"}>{c.ok ? "✓" : "✗"}</span>
+                </div>
+              ))}
+              <div className="mt-2 text-xs text-white/40">Проверено: {new Date(health.timestamp).toLocaleString()}</div>
+            </div>
+          ) : (
+            <div className="text-white/50">Диагностика недоступна</div>
+          )}
+        </div>
 
         {/* Server */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">

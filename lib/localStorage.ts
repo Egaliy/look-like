@@ -41,7 +41,7 @@ interface Rating {
 
 class LocalStorage {
   private getStorageKey(key: string) {
-    return `looklike_${key}`;
+    return `likethat_${key}`;
   }
 
   private getData<T>(key: string): T[] {

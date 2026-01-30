@@ -20,8 +20,11 @@ npm install
 
 1. Создайте файл `.env` с переменными окружения:
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/looklike"
+DATABASE_URL="postgresql://user:password@localhost:5432/like_that"
+# Локальная разработка:
 NEXTAUTH_URL="http://localhost:3000"
+# На сервере (продакшен):
+# NEXTAUTH_URL="http://130.49.149.162"
 NEXTAUTH_SECRET="your-secret-key-here"
 ```
 
@@ -37,7 +40,32 @@ npx prisma db push
 npm run dev
 ```
 
-Откройте [http://localhost:3000](http://localhost:3000)
+- **Локально:** [http://localhost:3000](http://localhost:3000)
+- **На сервере:** [http://130.49.149.162](http://130.49.149.162)
+
+## Сервер: если сайт не работает
+
+Если админка открывается, но «Сервер» и «Проекты» висят на «Загрузка…» — на сервере нет или повреждён `.env`.
+
+1. Открой консоль сервера (в панели VPS: «Открыть консоль»).
+2. Перейди в папку проекта и создай `.env`:
+```bash
+cd /var/www/look-like
+nano .env
+```
+3. Вставь (подставь свои значения):
+```env
+DATABASE_URL="postgresql://...строка из Supabase → Settings → Database..."
+NEXTAUTH_URL="http://130.49.149.162"
+NEXTAUTH_SECRET="любая-длинная-случайная-строка"
+```
+Сохрани: Ctrl+O, Enter, Ctrl+X.
+4. Перезапусти приложение:
+```bash
+pm2 restart look-like
+```
+
+Блокировка портов 25 и 465 в панели относится только к почте; для сайта (80/443) это не мешает.
 
 ## Структура проекта
 
