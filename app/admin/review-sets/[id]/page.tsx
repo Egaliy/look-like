@@ -50,7 +50,7 @@ export default function ReviewSetPage() {
   const [deletingImage, setDeletingImage] = useState<string | null>(null);
   const [deletingLink, setDeletingLink] = useState<string | null>(null);
   const [deletingProject, setDeletingProject] = useState(false);
-  const [showStats, setShowStats] = useState(false);
+  const [showStats, setShowStats] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     total: number;
@@ -399,14 +399,6 @@ export default function ReviewSetPage() {
             </div>
             <div className="flex gap-2">
               <Button
-                onClick={() => setShowStats(!showStats)}
-                variant="ghost"
-                className="text-white/60 hover:text-white hover:bg-white/10"
-              >
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Statistics
-              </Button>
-              <Button
                 onClick={deleteProject}
                 disabled={deletingProject}
                 variant="ghost"
@@ -418,57 +410,6 @@ export default function ReviewSetPage() {
             </div>
           </div>
         </div>
-
-        {/* Statistics */}
-        {showStats && stats && (
-          <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Statistics</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowStats(false)}
-                className="text-white/60 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Images</div>
-                <div className="mt-1 text-2xl font-bold text-white">{stats.totalImages}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Links</div>
-                <div className="mt-1 text-2xl font-bold text-white">{stats.totalLinks}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Ratings</div>
-                <div className="mt-1 text-2xl font-bold text-white">{stats.totalRatings}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Clients</div>
-                <div className="mt-1 text-2xl font-bold text-white">{stats.uniqueClients}</div>
-              </div>
-            </div>
-            {stats.totalRatings > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs text-white/50">0 likes</div>
-                  <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.zero}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs text-white/50">1 like</div>
-                  <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.one}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs text-white/50">2+ likes</div>
-                  <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.twoPlus}</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Images Section */}
@@ -597,6 +538,49 @@ export default function ReviewSetPage() {
               </div>
             )}
           </div>
+
+          {/* Statistics */}
+          {stats && (
+            <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold text-white">Statistics</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/50">Images</div>
+                  <div className="mt-1 text-2xl font-bold text-white">{stats.totalImages}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/50">Links</div>
+                  <div className="mt-1 text-2xl font-bold text-white">{stats.totalLinks}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/50">Ratings</div>
+                  <div className="mt-1 text-2xl font-bold text-white">{stats.totalRatings}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/50">Clients</div>
+                  <div className="mt-1 text-2xl font-bold text-white">{stats.uniqueClients}</div>
+                </div>
+              </div>
+              {stats.totalRatings > 0 && (
+                <div className="mt-4 grid grid-cols-3 gap-4">
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs text-white/50">0 likes</div>
+                    <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.zero}</div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs text-white/50">1 like</div>
+                    <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.one}</div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs text-white/50">2+ likes</div>
+                    <div className="mt-1 text-xl font-bold text-white">{stats.imagesByLikes.twoPlus}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Links Section */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
