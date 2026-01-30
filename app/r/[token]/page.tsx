@@ -168,12 +168,20 @@ export default function ReviewPage({
   const [clientId, setClientId] = useState<string>("");
 
   useEffect(() => {
-    // Генерируем или получаем clientId из localStorage
+    // Генерируем или получаем clientId и sessionId из localStorage
     let storedClientId = localStorage.getItem(`clientId_${params.token}`);
+    let storedSessionId = localStorage.getItem(`sessionId_${params.token}`);
+    
     if (!storedClientId) {
       storedClientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       localStorage.setItem(`clientId_${params.token}`, storedClientId);
     }
+    
+    if (!storedSessionId) {
+      storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      localStorage.setItem(`sessionId_${params.token}`, storedSessionId);
+    }
+    
     setClientId(storedClientId);
 
     // Load review set data
@@ -248,6 +256,7 @@ export default function ReviewPage({
 
     // Send event to API
     if (clientId) {
+      const sessionId = localStorage.getItem(`sessionId_${params.token}`) || `session_${Date.now()}`;
       fetch(`/api/r/${params.token}/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,6 +265,7 @@ export default function ReviewPage({
           decision: action,
           orderIndex: index,
           clientId: clientId,
+          sessionId: sessionId,
         }),
       }).catch(console.error);
     }

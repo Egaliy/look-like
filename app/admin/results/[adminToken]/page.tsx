@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { Trash2, User, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Rating {
   id: string;
   imageId: string;
   decision: "like" | "dislike";
   clientId: string;
+  sessionId?: string | null;
   timestamp: string;
 }
 
@@ -18,10 +21,21 @@ interface ImageWithRatings {
   ratings: Rating[];
 }
 
+interface Session {
+  clientId: string;
+  firstRating: string;
+  lastRating: string;
+  totalRatings: number;
+  likes: number;
+  dislikes: number;
+}
+
 export default function ResultsPage() {
   const params = useParams();
   const [images, setImages] = useState<ImageWithRatings[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   useEffect(() => {
     loadResults();
@@ -36,11 +50,36 @@ export default function ResultsPage() {
       if (res.ok) {
         const data = await res.json();
         setImages(data.images || []);
+        setSessions(data.sessions || []);
         setLoading(false);
       }
     } catch (error) {
       console.error("Error loading results:", error);
       setLoading(false);
+    }
+  }
+
+  async function deleteSession(clientId: string) {
+    if (!confirm(`Delete all ratings from this session? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingSession(clientId);
+    try {
+      const res = await fetch(`/api/admin/results/${params.adminToken}/sessions/${clientId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        loadResults();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error deleting session");
+      }
+    } catch (error) {
+      alert("Error deleting session");
+    } finally {
+      setDeletingSession(null);
     }
   }
 
@@ -54,6 +93,19 @@ export default function ResultsPage() {
 
   function getDislikeCount(image: ImageWithRatings): number {
     return image.ratings.filter((r) => r.decision === "dislike").length;
+  }
+
+  function formatClientName(clientId: string): string {
+    // Извлекаем время из clientId (формат: client_TIMESTAMP_random)
+    const parts = clientId.split('_');
+    if (parts.length >= 2 && parts[1]) {
+      const timestamp = parseInt(parts[1]);
+      if (!isNaN(timestamp)) {
+        const date = new Date(timestamp);
+        return `User ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+      }
+    }
+    return `User ${clientId.substring(0, 8)}...`;
   }
 
   // Group images by like count
@@ -80,6 +132,48 @@ export default function ResultsPage() {
 
       <div className="relative mx-auto max-w-7xl p-8">
         <h1 className="mb-8 text-3xl font-bold text-white">Review Results</h1>
+
+        {/* Sessions List */}
+        {sessions.length > 0 && (
+          <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+            <h2 className="mb-4 text-xl font-semibold text-white flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Sessions ({sessions.length})
+            </h2>
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <div
+                  key={session.clientId}
+                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium text-white">{formatClientName(session.clientId)}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-white/60">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Started: {new Date(session.firstRating).toLocaleString()}
+                      </span>
+                      <span>Last: {new Date(session.lastRating).toLocaleString()}</span>
+                      <span>{session.totalRatings} ratings</span>
+                      <span className="text-green-400">{session.likes} likes</span>
+                      <span className="text-red-400">{session.dislikes} dislikes</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => deleteSession(session.clientId)}
+                    disabled={deletingSession === session.clientId}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deletingSession === session.clientId ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 0 likes */}
