@@ -39,6 +39,7 @@ export async function GET(
         id: img.id,
         reviewSetId: img.reviewSetId,
         url: img.url,
+        filePath: img.filePath,
         order: img.order,
         title: img.title,
         metadata: img.metadata,
@@ -47,6 +48,7 @@ export async function GET(
       links: reviewSet.links.map((link) => ({
         id: link.id,
         token: link.token,
+        adminToken: link.adminToken,
         reviewSetId: link.reviewSetId,
         maxSessions: link.maxSessions,
         allowResume: link.allowResume,

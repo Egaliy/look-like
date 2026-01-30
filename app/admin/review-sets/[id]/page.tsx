@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 
 interface ImageAsset {
   id: string;
-  url: string;
+  url: string | null;
+  filePath: string | null;
   title: string | null;
   order: number;
 }
@@ -15,6 +16,7 @@ interface ImageAsset {
 interface ReviewLink {
   id: string;
   token: string;
+  adminToken?: string;
   createdAt: string;
   expiresAt: string | null;
 }
@@ -121,7 +123,7 @@ export default function ReviewSetPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div>Loading...</div>
+        <div>Загрузка...</div>
       </div>
     );
   }
@@ -129,7 +131,7 @@ export default function ReviewSetPage() {
   if (!reviewSet) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div>Review set not found</div>
+        <div>Проект не найден</div>
       </div>
     );
   }
@@ -145,10 +147,10 @@ export default function ReviewSetPage() {
       <div className="relative mx-auto max-w-6xl p-8">
         <div className="mb-8">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/admin")}
             className="mb-4 text-white/60 hover:text-white"
           >
-            ← Back to dashboard
+            ← Админ
           </button>
           <h1 className="text-3xl font-bold text-white">{reviewSet.title}</h1>
         </div>
@@ -157,7 +159,7 @@ export default function ReviewSetPage() {
           {/* Images Section */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Images ({reviewSet.images.length})</h2>
+              <h2 className="text-xl font-semibold text-white">Изображения ({reviewSet.images.length})</h2>
             </div>
 
             <div className="mb-4 flex gap-2">
@@ -165,7 +167,7 @@ export default function ReviewSetPage() {
                 type="url"
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
-                placeholder="Image URL (e.g., https://example.com/image.jpg)"
+                placeholder="URL изображения (опционально)"
                 className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20"
                 onKeyPress={(e) => e.key === "Enter" && addImage()}
               />
@@ -176,20 +178,27 @@ export default function ReviewSetPage() {
 
             {!reviewSet.images || reviewSet.images.length === 0 ? (
               <div className="rounded-lg border border-dashed border-white/10 p-8 text-center text-white/50">
-                No images yet. Add image URLs above.
+                Нет изображений.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                {reviewSet.images.map((img) => (
-                  <div key={img.id} className="relative group overflow-hidden rounded-lg">
-                    <img
-                      src={img.url}
-                      alt={img.title || "Reference"}
-                      className="h-32 w-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
-                  </div>
-                ))}
+                {reviewSet.images.map((img) => {
+                  const src = img.filePath || img.url || "";
+                  return (
+                    <div key={img.id} className="relative group overflow-hidden rounded-lg">
+                      {src ? (
+                        <img
+                          src={src}
+                          alt={img.title || "Reference"}
+                          className="h-32 w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-32 items-center justify-center bg-white/5 text-white/50">Нет URL</div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -197,39 +206,47 @@ export default function ReviewSetPage() {
           {/* Links Section */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Review Links</h2>
+              <h2 className="text-xl font-semibold text-white">Ссылки для оценки</h2>
               <Button 
                 onClick={generateLink} 
                 disabled={generatingLink || !reviewSet.images || reviewSet.images.length === 0}
                 className="bg-white/10 text-white hover:bg-white/20"
               >
                 <LinkIcon className="mr-2 h-4 w-4" />
-                {generatingLink ? "Generating..." : "Generate Link"}
+                {generatingLink ? "Создание..." : "Создать ссылку"}
               </Button>
             </div>
 
             {!reviewSet.links || reviewSet.links.length === 0 ? (
               <div className="rounded-lg border border-dashed border-white/10 p-8 text-center text-white/50">
-                No links yet. Generate a link to share with clients.
+                Нет ссылок. Создайте ссылку для клиентов.
               </div>
             ) : (
               <div className="space-y-3">
                 {reviewSet.links.map((link) => {
-                  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/r/${link.token}`;
+                  const origin = typeof window !== "undefined" ? window.location.origin : "";
+                  const clientUrl = `${origin}/r/${link.token}`;
+                  const resultsUrl = link.adminToken ? `${origin}/admin/results/${link.adminToken}` : null;
                   return (
                     <div
                       key={link.id}
-                      className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-4"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 p-4"
                     >
-                      <div className="flex-1">
-                        <div className="font-mono text-sm text-white/80 break-all">
-                          {url}
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-sm text-white/80 break-all">{clientUrl}</div>
                         <div className="mt-1 text-xs text-white/50">
-                          Created: {new Date(link.createdAt).toLocaleString()}
+                          Создано: {new Date(link.createdAt).toLocaleString()}
                         </div>
+                        {resultsUrl && (
+                          <a
+                            href={resultsUrl}
+                            className="mt-2 inline-block text-sm text-emerald-400 hover:text-emerald-300"
+                          >
+                            Результаты →
+                          </a>
+                        )}
                       </div>
-                      <div className="ml-4 flex gap-2">
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -238,15 +255,18 @@ export default function ReviewSetPage() {
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <a
-                          href={`/r/${link.token}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
+                        <a href={`/r/${link.token}`} target="_blank" rel="noopener noreferrer">
                           <Button variant="ghost" size="sm" className="text-white/60 hover:text-white hover:bg-white/10">
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </a>
+                        {resultsUrl && (
+                          <a href={resultsUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="sm" className="text-white/60 hover:text-white hover:bg-white/10">
+                              Результаты
+                            </Button>
+                          </a>
+                        )}
                       </div>
                     </div>
                   );
