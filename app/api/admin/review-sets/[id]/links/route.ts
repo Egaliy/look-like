@@ -10,6 +10,9 @@ export async function POST(
   const prismaInstance = new PrismaClient();
   
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const reviewSet = await prismaInstance.reviewSet.findUnique({
       where: { id: params.id },
     });
@@ -21,39 +24,147 @@ export async function POST(
       );
     }
 
-    // Генерируем adminToken вручную, если БД не поддерживает default
-    const adminToken = randomBytes(16).toString('hex');
+    // Используем slug проекта как token для ссылки
+    const slug = (reviewSet as any).slug;
+    if (!slug) {
+      // Если slug нет, генерируем из title
+      const fallbackSlug = reviewSet.title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      
+      if (!fallbackSlug) {
+        return NextResponse.json(
+          { error: "Не удалось создать slug из названия проекта" },
+          { status: 400 }
+        );
+      }
+      
+      // Используем fallback slug
+      const existingLink = await prismaInstance.reviewLink.findUnique({
+        where: { token: fallbackSlug },
+      });
 
-    const link = await prismaInstance.reviewLink.create({
-      data: {
-        reviewSetId: params.id,
-        adminToken: adminToken,
-        maxSessions: 1,
-        allowResume: true,
-        expiresAt: null,
-      },
-    });
-
-    return NextResponse.json({
-      id: link.id,
-      token: link.token,
-      adminToken: (link as any).adminToken || adminToken,
-      reviewSetId: link.reviewSetId,
-      maxSessions: link.maxSessions,
-      allowResume: link.allowResume,
-      expiresAt: link.expiresAt?.toISOString() || null,
-      createdAt: link.createdAt.toISOString(),
-      updatedAt: link.updatedAt.toISOString(),
-    });
-  } catch (error: any) {
-    console.error("Error creating link:", error);
-    
-    // Если ошибка из-за отсутствия колонки, пробуем без adminToken
-    if (error.message?.includes('adminToken')) {
+      if (existingLink) {
+        return NextResponse.json({
+          id: existingLink.id,
+          token: existingLink.token,
+          adminToken: (existingLink as any).adminToken || null,
+          reviewSetId: existingLink.reviewSetId,
+          maxSessions: existingLink.maxSessions,
+          allowResume: existingLink.allowResume,
+          expiresAt: existingLink.expiresAt?.toISOString() || null,
+          createdAt: existingLink.createdAt.toISOString(),
+          updatedAt: existingLink.updatedAt.toISOString(),
+        });
+      }
+      
+      // Создаем ссылку с fallback slug
+      const adminToken = randomBytes(16).toString('hex');
       try {
         const link = await prismaInstance.reviewLink.create({
           data: {
             reviewSetId: params.id,
+            token: fallbackSlug,
+            adminToken: adminToken,
+            maxSessions: 1,
+            allowResume: true,
+            expiresAt: null,
+          },
+        });
+        return NextResponse.json({
+          id: link.id,
+          token: link.token,
+          adminToken: (link as any).adminToken || adminToken,
+          reviewSetId: link.reviewSetId,
+          maxSessions: link.maxSessions,
+          allowResume: link.allowResume,
+          expiresAt: link.expiresAt?.toISOString() || null,
+          createdAt: link.createdAt.toISOString(),
+          updatedAt: link.updatedAt.toISOString(),
+        });
+      } catch (createError: any) {
+        if (createError.message?.includes('adminToken') || createError.message?.includes('admin_token')) {
+          const link = await prismaInstance.reviewLink.create({
+            data: {
+              reviewSetId: params.id,
+              token: fallbackSlug,
+              maxSessions: 1,
+              allowResume: true,
+              expiresAt: null,
+            },
+          });
+          return NextResponse.json({
+            id: link.id,
+            token: link.token,
+            adminToken: null,
+            reviewSetId: link.reviewSetId,
+            maxSessions: link.maxSessions,
+            allowResume: link.allowResume,
+            expiresAt: link.expiresAt?.toISOString() || null,
+            createdAt: link.createdAt.toISOString(),
+            updatedAt: link.updatedAt.toISOString(),
+          });
+        }
+        throw createError;
+      }
+    }
+
+    // Проверяем, не существует ли уже ссылка с таким token
+    const existingLink = await prismaInstance.reviewLink.findUnique({
+      where: { token: slug },
+    });
+
+    if (existingLink) {
+      // Если ссылка уже существует, возвращаем её
+      return NextResponse.json({
+        id: existingLink.id,
+        token: existingLink.token,
+        adminToken: (existingLink as any).adminToken || null,
+        reviewSetId: existingLink.reviewSetId,
+        maxSessions: existingLink.maxSessions,
+        allowResume: existingLink.allowResume,
+        expiresAt: existingLink.expiresAt?.toISOString() || null,
+        createdAt: existingLink.createdAt.toISOString(),
+        updatedAt: existingLink.updatedAt.toISOString(),
+      });
+    }
+
+    const adminToken = randomBytes(16).toString('hex');
+
+    try {
+      const link = await prismaInstance.reviewLink.create({
+        data: {
+          reviewSetId: params.id,
+          token: slug, // Используем slug как token
+          adminToken: adminToken,
+          maxSessions: 1,
+          allowResume: true,
+          expiresAt: null,
+        },
+      });
+
+      return NextResponse.json({
+        id: link.id,
+        token: link.token,
+        adminToken: (link as any).adminToken || adminToken,
+        reviewSetId: link.reviewSetId,
+        maxSessions: link.maxSessions,
+        allowResume: link.allowResume,
+        expiresAt: link.expiresAt?.toISOString() || null,
+        createdAt: link.createdAt.toISOString(),
+        updatedAt: link.updatedAt.toISOString(),
+      });
+    } catch (createError: any) {
+      // Если ошибка из-за отсутствия колонки adminToken, пробуем без неё
+      if (createError.message?.includes('adminToken') || createError.message?.includes('admin_token')) {
+        console.warn("adminToken column missing, creating link without it");
+        const link = await prismaInstance.reviewLink.create({
+          data: {
+            reviewSetId: params.id,
+            token: slug,
             maxSessions: 1,
             allowResume: true,
             expiresAt: null,
@@ -70,14 +181,11 @@ export async function POST(
           createdAt: link.createdAt.toISOString(),
           updatedAt: link.updatedAt.toISOString(),
         });
-      } catch (e2: any) {
-        return NextResponse.json(
-          { error: e2.message || "Internal server error" },
-          { status: 500 }
-        );
       }
+      throw createError;
     }
-    
+  } catch (error: any) {
+    console.error("Error creating link:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

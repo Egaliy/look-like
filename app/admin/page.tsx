@@ -29,6 +29,11 @@ export default function AdminPage() {
   const [loadingServer, setLoadingServer] = useState(true);
 
   const [title, setTitle] = useState("");
+  const [titleValidation, setTitleValidation] = useState<{
+    isValid: boolean;
+    message: string;
+    checking: boolean;
+  }>({ isValid: false, message: "", checking: false });
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -40,13 +45,104 @@ export default function AdminPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isValidTitle = title.trim().length > 0;
+  // Функция для создания slug
+  function createSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\\-_]/g, '-') // Поддерживаем дефисы и подчеркивания
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  // Валидация названия
+  function validateTitle(text: string): { isValid: boolean; message: string } {
+    const trimmed = text.trim();
+    
+    if (!trimmed) {
+      return { isValid: false, message: "" };
+    }
+
+    // Проверка на английские буквы, цифры, дефисы, подчеркивания
+    const englishOnly = /^[a-zA-Z0-9-_]+$/.test(trimmed);
+    if (!englishOnly) {
+      return {
+        isValid: false,
+        message: "Только английские буквы, цифры, дефисы и подчеркивания",
+      };
+    }
+
+    if (trimmed.length < 2) {
+      return {
+        isValid: false,
+        message: "Минимум 2 символа",
+      };
+    }
+
+    return { isValid: true, message: "Все ок" };
+  }
+
+  // Проверка уникальности через API
+  useEffect(() => {
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current);
+    }
+
+    if (!title.trim() || reviewSetId) {
+      setTitleValidation({ isValid: false, message: "", checking: false });
+      return;
+    }
+
+    const validation = validateTitle(title);
+    if (!validation.isValid) {
+      setTitleValidation({ ...validation, checking: false });
+      return;
+    }
+
+    setTitleValidation({ isValid: false, message: "Проверка...", checking: true });
+
+    validationTimeoutRef.current = setTimeout(async () => {
+      const slug = createSlug(title);
+      try {
+        const res = await fetch("/api/admin/review-sets/check-slug", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug }),
+        });
+        const data = await res.json();
+        
+        if (data.available) {
+          setTitleValidation({ isValid: true, message: "Все ок", checking: false });
+        } else {
+          setTitleValidation({
+            isValid: false,
+            message: "Проект с таким названием уже существует",
+            checking: false,
+          });
+        }
+      } catch (error) {
+        setTitleValidation({
+          isValid: false,
+          message: "Ошибка проверки",
+          checking: false,
+        });
+      }
+    }, 500);
+
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+    };
+  }, [title, reviewSetId]);
+
   const borderColor = reviewSetId
     ? "border-white/10"
-    : isValidTitle
+    : titleValidation.isValid
       ? "border-green-500/50 focus:border-green-500"
-      : title.length > 0
+      : title.length > 0 && !titleValidation.checking
         ? "border-red-500/50 focus:border-red-500"
         : "border-white/10";
 
@@ -120,7 +216,9 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filePath }),
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.id) {
+        setImages((prev) => [...prev, filePath]);
         const data = await res.json();
         setImages((prev) => [...prev, data.filePath || data.url]);
       }
@@ -130,8 +228,7 @@ export default function AdminPage() {
   }
 
   async function createProject() {
-    if (!title.trim()) {
-      alert("Введите название проекта");
+    if (!titleValidation.isValid) {
       return;
     }
     setCreating(true);
@@ -146,6 +243,11 @@ export default function AdminPage() {
         setReviewSetId(data.id);
       } else {
         alert(data.error || "Ошибка при создании проекта");
+        setTitleValidation({
+          isValid: false,
+          message: data.error || "Ошибка при создании",
+          checking: false,
+        });
       }
     } catch (error: any) {
       alert(error.message || "Ошибка при создании проекта");
@@ -303,17 +405,34 @@ export default function AdminPage() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Введите название"
+                  placeholder="my-project (только английские буквы, цифры, дефисы)"
                   disabled={!!reviewSetId}
                   className={`w-full rounded-md border-2 ${borderColor} bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 ${
-                    isValidTitle && !reviewSetId ? "focus:ring-green-500/30" : title.length > 0 ? "focus:ring-red-500/30" : "focus:ring-white/20"
+                    titleValidation.isValid && !reviewSetId
+                      ? "focus:ring-green-500/30"
+                      : title.length > 0 && !titleValidation.checking
+                        ? "focus:ring-red-500/30"
+                        : "focus:ring-white/20"
                   } transition-colors disabled:opacity-50`}
-                  onKeyPress={(e) => e.key === "Enter" && !reviewSetId && isValidTitle && createProject()}
+                  onKeyPress={(e) => e.key === "Enter" && !reviewSetId && titleValidation.isValid && createProject()}
                 />
+                {title.length > 0 && !reviewSetId && (
+                  <div
+                    className={`mt-2 text-xs ${
+                      titleValidation.isValid
+                        ? "text-green-400"
+                        : titleValidation.checking
+                          ? "text-white/50"
+                          : "text-red-400"
+                    }`}
+                  >
+                    {titleValidation.message || "Введите название"}
+                  </div>
+                )}
                 {!reviewSetId && (
                   <Button
                     onClick={createProject}
-                    disabled={creating || !isValidTitle}
+                    disabled={creating || !titleValidation.isValid}
                     className="mt-3 bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
                   >
                     {creating ? "Создание..." : "Создать проект"}

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const body = await request.json();
     const { imageId, decision, orderIndex, sessionId, clientId } = body;
 
@@ -23,7 +29,7 @@ export async function POST(
       );
     }
 
-    const reviewLink = await prisma.reviewLink.findUnique({
+    const reviewLink = await prismaInstance.reviewLink.findUnique({
       where: { token: params.token },
     });
 
@@ -32,7 +38,7 @@ export async function POST(
     }
 
     // Upsert rating (update if exists, create if not) с учетом clientId
-    await prisma.rating.upsert({
+    await prismaInstance.rating.upsert({
       where: {
         reviewLinkId_imageId_clientId: {
           reviewLinkId: reviewLink.id,
@@ -57,11 +63,13 @@ export async function POST(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error saving rating:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }

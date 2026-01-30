@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prismaInstance = new PrismaClient();
+  
   try {
+    await prismaInstance.$disconnect();
+    await prismaInstance.$connect();
+    
     const body = await request.json();
     const { filePath, url, title } = body;
 
     // Проверяем, что review set существует
-    const reviewSet = await prisma.reviewSet.findUnique({
+    const reviewSet = await prismaInstance.reviewSet.findUnique({
       where: { id: params.id },
     });
 
@@ -22,7 +28,7 @@ export async function POST(
     }
 
     // Get current max order
-    const maxOrderImage = await prisma.imageAsset.findFirst({
+    const maxOrderImage = await prismaInstance.imageAsset.findFirst({
       where: { reviewSetId: params.id },
       orderBy: { order: "desc" },
       select: { order: true },
@@ -30,7 +36,7 @@ export async function POST(
 
     const maxOrder = maxOrderImage?.order ?? -1;
 
-    const image = await prisma.imageAsset.create({
+    const image = await prismaInstance.imageAsset.create({
       data: {
         reviewSetId: params.id,
         url: url || null,
@@ -50,11 +56,13 @@ export async function POST(
       metadata: image.metadata,
       createdAt: image.createdAt.toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error adding image:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    await prismaInstance.$disconnect();
   }
 }

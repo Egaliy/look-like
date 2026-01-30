@@ -22,6 +22,7 @@ model AdminUser {
 model ReviewSet {
   id          String   @id @default(cuid())
   title       String
+  slug        String   @unique // URL-friendly версия названия (английские буквы, цифры, дефисы)
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -30,6 +31,7 @@ model ReviewSet {
   links       ReviewLink[]
   
   @@map("review_sets")
+  @@index([slug])
 }
 
 model ImageAsset {

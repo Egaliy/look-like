@@ -35,6 +35,7 @@ export async function GET(
     return NextResponse.json({
       id: reviewSet.id,
       title: reviewSet.title,
+      slug: (reviewSet as any).slug || null,
       description: reviewSet.description,
       createdAt: reviewSet.createdAt.toISOString(),
       updatedAt: reviewSet.updatedAt.toISOString(),
