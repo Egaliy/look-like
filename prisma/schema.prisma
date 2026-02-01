@@ -20,12 +20,16 @@ model AdminUser {
 }
 
 model ReviewSet {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique // URL-friendly версия названия (английские буквы, цифры, дефисы)
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  title            String
+  slug             String   @unique // URL-friendly версия названия (английские буквы, цифры, дефисы)
+  description      String?
+  icon             String?  // Эмодзи как иконка проекта (как в Notion)
+  isDefault        Boolean  @default(false) // Стандартная папка: если ссылка «без названия», показываем фото отсюда
+  maxImagesToRate   Int?     // null = оценить все; число = показывать столько случайных
+  order            Int      @default(0) // Порядок в списке (перетаскивание)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
   images      ImageAsset[]
   links       ReviewLink[]

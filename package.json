@@ -10,7 +10,10 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "deploy": "./deploy-direct.sh",
+    "deploy:full": "./deploy-and-setup.sh",
+    "deploy:watch": "node scripts/deploy-watch.js"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",

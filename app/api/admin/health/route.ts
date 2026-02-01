@@ -15,14 +15,26 @@ export async function GET() {
   const checks: Record<string, CheckResult> = {};
   let allOk = true;
 
-  // 1. База данных
+  // 1. База данных (без raw/prepared statements — совместимо с PgBouncer/Supabase pooler)
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    const count = await prisma.reviewSet.count().catch(() => 0);
-    checks.database = { ok: true, message: "Подключена", detail: `Проектов: ${count}` };
+    const count = await prisma.reviewSet.count();
+    checks.database = { ok: true, message: "Connected", detail: `Projects: ${count}` };
   } catch (e: unknown) {
     const err = e instanceof Error ? e.message : String(e);
-    checks.database = { ok: false, message: "Ошибка", detail: err };
+    const errStr = String(err);
+    const isPgbouncer = /prepared statement .* does not exist/i.test(errStr);
+    const isAllowList = /address not in tenant allow_list|allow_list/i.test(errStr);
+    let detail = errStr;
+    if (isPgbouncer) {
+      detail = `${errStr}\n\nHint: add ?pgbouncer=true to the end of DATABASE_URL in .env (for Supabase/PgBouncer). Restart the server (npm run dev) after changing.`;
+    } else if (isAllowList) {
+      detail = `${errStr}\n\nFix: add this server's IP to the database allow list. In Supabase: Project → Settings → Database → Network → "Restrict connections" → add your IP or use 0.0.0.0/0 for development.`;
+    }
+    checks.database = {
+      ok: false,
+      message: "Error",
+      detail,
+    };
     allOk = false;
   }
 
@@ -40,7 +52,7 @@ export async function GET() {
   }
   checks.env = {
     ok: envOk,
-    message: envOk ? "Настроены" : "Не хватает переменных",
+    message: envOk ? "Set" : "Missing variables",
     detail: envStatus.join(", "),
   };
   if (!envOk) allOk = false;
@@ -53,8 +65,8 @@ export async function GET() {
   });
   checks.s3 = {
     ok: true,
-    message: s3Configured ? "Настроен (ключи заданы)" : "Не используется",
-    detail: s3Configured ? "Опциональное хранилище включено" : "Загрузки идут в public/uploads",
+    message: s3Configured ? "Configured" : "Not used",
+    detail: s3Configured ? "Optional storage enabled" : "Uploads go to public/uploads",
   };
 
   // 4. Директория загрузок (доступ на запись)
@@ -66,10 +78,10 @@ export async function GET() {
     const testFile = join(uploadsRoot, ".health-check");
     writeFileSync(testFile, "ok", "utf8");
     unlinkSync(testFile);
-    checks.uploads = { ok: true, message: "Доступна для записи", detail: uploadsRoot };
+    checks.uploads = { ok: true, message: "Writable", detail: uploadsRoot };
   } catch (e: unknown) {
     const err = e instanceof Error ? e.message : String(e);
-    checks.uploads = { ok: false, message: "Нет доступа", detail: err };
+    checks.uploads = { ok: false, message: "No access", detail: err };
     allOk = false;
   }
 

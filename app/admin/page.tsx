@@ -2,13 +2,16 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Link as LinkIcon, Copy, Check, Server, FolderOpen, Plus, ChevronRight, X, Trash2, Activity } from "lucide-react";
+import { Upload, Server, FolderOpen, X, Trash2, Activity, GripVertical, Copy, Settings, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
   id: string;
+  slug?: string;
   title: string;
   description: string | null;
+  icon?: string | null;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
   _count: { images: number; links: number; ratings: number };
@@ -34,6 +37,14 @@ interface UploadProgress {
   uploaded: number;
   failed: number;
   errors: string[];
+  /** Текущий файл (1-based) */
+  currentFile?: number;
+  /** Всего файлов */
+  totalFiles?: number;
+  /** В текущем архиве фото (если ZIP) */
+  zipTotal?: number;
+  /** Добавлено из архива в проект */
+  zipDone?: number;
 }
 
 export default function AdminPage() {
@@ -50,19 +61,35 @@ export default function AdminPage() {
     message: string;
     checking: boolean;
   }>({ isValid: false, message: "", checking: false });
-  const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [creating, setCreating] = useState(false);
-  const [reviewSetId, setReviewSetId] = useState<string | null>(null);
-  const [clientLink, setClientLink] = useState<string | null>(null);
-  const [adminLink, setAdminLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingPreviews, setPendingPreviews] = useState<Record<number, string>>({});
+  const [createButtonText, setCreateButtonText] = useState<string>("Create");
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const [origin, setOrigin] = useState("https://app.ubernatural.io");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
+  useEffect(() => {
+    const urls: Record<number, string> = {};
+    pendingFiles.forEach((f, i) => {
+      if (f.type.startsWith("image/")) urls[i] = URL.createObjectURL(f);
+    });
+    setPendingPreviews((prev) => {
+      Object.values(prev).forEach(URL.revokeObjectURL);
+      return urls;
+    });
+    return () => Object.values(urls).forEach(URL.revokeObjectURL);
+  }, [pendingFiles]);
 
   // Функция для создания slug
   function createSlug(text: string): string {
@@ -116,7 +143,7 @@ export default function AdminPage() {
       clearTimeout(validationTimeoutRef.current);
     }
 
-    if (!title.trim() || reviewSetId) {
+    if (!title.trim()) {
       setTitleValidation({ isValid: false, message: "", checking: false });
       return;
     }
@@ -172,15 +199,13 @@ export default function AdminPage() {
         clearTimeout(validationTimeoutRef.current);
       }
     };
-  }, [title, reviewSetId]);
+  }, [title]);
 
-  const borderColor = reviewSetId
-    ? "border-white/10"
-    : title.length > 0 && !titleValidation.checking
-      ? titleValidation.isValid
-        ? "border-green-500/50 focus:border-green-500"
-        : "border-red-500/50 focus:border-red-500"
-      : "border-white/10";
+  const borderColor = title.length > 0 && !titleValidation.checking
+    ? titleValidation.isValid
+      ? "border-green-500/50 focus:border-green-500"
+      : "border-red-500/50 focus:border-red-500"
+    : "border-white/10";
 
   function loadProjects() {
     fetch("/api/admin/review-sets")
@@ -219,101 +244,19 @@ export default function AdminPage() {
       .catch(() => setLoadingHealth(false));
   }, []);
 
-  async function handleFileUpload(files: FileList | null) {
+  function addPendingFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    if (!reviewSetId) {
-      alert("Please create a project first");
-      return;
-    }
-
-    const fileArray = Array.from(files);
-    const totalFiles = fileArray.length;
-    let uploaded = 0;
-    let failed = 0;
-    const errors: string[] = [];
-
-    setUploading(true);
-    setUploadProgress({
-      total: totalFiles,
-      uploaded: 0,
-      failed: 0,
-      errors: [],
-    });
-
-    try {
-      for (const file of fileArray) {
-        const isZip = file.name.toLowerCase().endsWith('.zip');
-        
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("reviewSetId", reviewSetId);
-
-          const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
-          const data = await res.json();
-          
-          if (data.success) {
-            if (isZip && data.files) {
-              // ZIP файл - добавляем все файлы из архива
-              for (const filePath of data.files) {
-                await addImageToDB(filePath);
-              }
-              uploaded += data.files.length;
-            } else if (data.filePath) {
-              // Одиночный файл
-              await addImageToDB(data.filePath);
-              uploaded++;
-            }
-          } else {
-            failed++;
-            errors.push(`${file.name}: ${data.error || "Upload failed"}`);
-          }
-        } catch (error: any) {
-          failed++;
-          errors.push(`${file.name}: ${error.message || "Upload error"}`);
-        }
-
-        setUploadProgress({
-          total: totalFiles,
-          uploaded,
-          failed,
-          errors: [...errors],
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      errors.push("General upload error");
-    } finally {
-      setUploading(false);
-      // Очищаем прогресс через 5 секунд
-      setTimeout(() => {
-        setUploadProgress(null);
-      }, 5000);
-    }
+    setPendingFiles((prev) => [...prev, ...Array.from(files)]);
   }
 
-  async function addImageToDB(filePath: string) {
-    if (!reviewSetId) return;
-    try {
-      const res = await fetch(`/api/admin/review-sets/${reviewSetId}/images`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath }),
-      });
-      const data = await res.json();
-      if (res.ok && data.id) {
-        setImages((prev) => [...prev, filePath]);
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  function removePendingFile(index: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function createProject() {
-    if (!titleValidation.isValid) {
-      return;
-    }
+    if (!titleValidation.isValid) return;
     setCreating(true);
+    setCreateButtonText("Creating...");
     try {
       const res = await fetch("/api/admin/review-sets", {
         method: "POST",
@@ -321,80 +264,85 @@ export default function AdminPage() {
         body: JSON.stringify({ title }),
       });
       const data = await res.json();
-      if (res.ok && data.id) {
-        setReviewSetId(data.id);
-        
-        // Автоматически создаем ссылку
-        try {
-          const linkRes = await fetch(`/api/admin/review-sets/${data.id}/links`, { method: "POST" });
-          if (linkRes.ok) {
-            const linkData = await linkRes.json();
-            const baseUrl = window.location.origin;
-            const projectUrl = `${baseUrl}/r/${linkData.token}`;
-            const adminUrl = linkData.adminToken ? `${baseUrl}/admin/results/${linkData.adminToken}` : null;
-            
-            // Копируем ссылку в буфер обмена
-            navigator.clipboard.writeText(projectUrl);
-            
-            // Показываем сообщение
-            alert(`Project created! Address copied to clipboard: ${projectUrl}`);
-            
-            // Устанавливаем ссылки для отображения
-            setClientLink(projectUrl);
-            setAdminLink(adminUrl);
-          } else {
-            // Если не удалось создать ссылку, все равно показываем что проект создан
-            alert("Project created, but failed to create link. You can create it manually later.");
-          }
-        } catch (linkError) {
-          console.error("Error creating link:", linkError);
-          alert("Project created, but failed to create link. You can create it manually later.");
-        }
-      } else {
-        alert(data.error || "Error creating project");
-        setTitleValidation({
-          isValid: false,
-          message: data.error || "Creation error",
-          checking: false,
-        });
+      if (!res.ok) {
+        setTitleValidation({ isValid: false, message: data.error || "Error", checking: false });
+        setCreateButtonText("Create");
+        setCreating(false);
+        return;
       }
-    } catch (error: any) {
-      alert(error.message || "Error creating project");
+      const projectId = data.id;
+
+      // Загружаем фото — с прогрессом по файлам и по фото в архиве
+      if (pendingFiles.length > 0) {
+        const totalFiles = pendingFiles.length;
+        setUploadProgress({
+          total: totalFiles,
+          uploaded: 0,
+          failed: 0,
+          errors: [],
+          currentFile: 1,
+          totalFiles,
+        });
+        let uploaded = 0;
+        let fileIndex = 0;
+        for (const file of pendingFiles) {
+          fileIndex++;
+          setUploadProgress((p) =>
+            p ? { ...p, currentFile: fileIndex, zipTotal: undefined, zipDone: undefined } : p
+          );
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("reviewSetId", projectId);
+            const upRes = await fetch("/api/admin/upload", { method: "POST", body: formData });
+            const upData = await upRes.json();
+            if (upData.success) {
+              if (upData.files && Array.isArray(upData.files)) {
+                const zipTotal = upData.files.length;
+                setUploadProgress((p) => (p ? { ...p, zipTotal, zipDone: 0 } : p));
+                let zipDone = 0;
+                for (const fp of upData.files) {
+                  await fetch(`/api/admin/review-sets/${projectId}/images`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filePath: fp }),
+                  });
+                  zipDone++;
+                  uploaded++;
+                  setUploadProgress((p) => (p ? { ...p, zipDone, uploaded } : p));
+                }
+              } else if (upData.filePath) {
+                await fetch(`/api/admin/review-sets/${projectId}/images`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ filePath: upData.filePath }),
+                });
+                uploaded++;
+                setUploadProgress((p) => (p ? { ...p, uploaded } : p));
+              }
+            }
+          } catch (_) {}
+        }
+        setUploadProgress(null);
+      }
+
+      const linkRes = await fetch(`/api/admin/review-sets/${projectId}/links`, { method: "POST" });
+      const linkData = linkRes.ok ? await linkRes.json() : null;
+      const projectUrl = linkData ? `${window.location.origin}/r/${linkData.token}` : "";
+      if (projectUrl) navigator.clipboard.writeText(projectUrl);
+
+      setCreateButtonText("Link copied");
+      loadProjects();
+      setTitle("");
+      setPendingFiles([]);
+      setTitleValidation({ isValid: false, message: "", checking: false });
+      setTimeout(() => setCreateButtonText("Create"), 2500);
+    } catch (e: any) {
+      setCreateButtonText("Error");
+      setTimeout(() => setCreateButtonText("Create"), 2000);
     } finally {
       setCreating(false);
     }
-  }
-
-  async function generateLink() {
-    if (!reviewSetId || images.length === 0) {
-      alert("Please upload photos first");
-      return;
-    }
-    try {
-      const res = await fetch(`/api/admin/review-sets/${reviewSetId}/links`, { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        const baseUrl = window.location.origin;
-        const linkUrl = `${baseUrl}/r/${data.token}`;
-        setClientLink(linkUrl);
-        setAdminLink(`${baseUrl}/admin/results/${data.adminToken}`);
-        
-        // Копируем ссылку в буфер обмена
-        navigator.clipboard.writeText(linkUrl);
-        alert(`Link created! Address copied to clipboard: ${linkUrl}`);
-      } else {
-        const errorData = await res.json();
-        alert(errorData.error || "Error creating link");
-      }
-    } catch (e) {
-      alert("Error creating link");
-    }
-  }
-
-  function copyToClipboard(text: string, type: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
   }
 
   function formatUptime(sec: number) {
@@ -411,40 +359,317 @@ export default function AdminPage() {
       </div>
 
       <div className="relative mx-auto max-w-4xl p-8">
-        <h1 className="mb-8 text-3xl font-bold text-white">Admin</h1>
+        {/* 1. Создание проекта — сверху, без кнопки + */}
+        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+          <h2 className="mb-4 text-xl font-semibold text-white">Create project</h2>
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-white/80">URL проекта</label>
+            <div
+              className={`flex items-stretch overflow-hidden rounded-md border-2 ${borderColor} bg-white/5 focus-within:ring-2 focus-within:ring-white/20`}
+            >
+              <span className="flex items-center border-r border-white/10 bg-white/5 px-3 py-2 text-white/70 whitespace-nowrap text-sm">
+                {origin}/
+              </span>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="my-project"
+                disabled={creating}
+                className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-0 disabled:opacity-50"
+                onKeyPress={(e) => e.key === "Enter" && titleValidation.isValid && createProject()}
+              />
+            </div>
+            {title.length > 0 && (
+              <div className={`mt-2 text-xs ${titleValidation.isValid ? "text-green-400" : titleValidation.checking ? "text-white/50" : "text-red-400"}`}>
+                {titleValidation.message || "Enter name"}
+              </div>
+            )}
+          </div>
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium text-white/80">Photos</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.zip"
+              multiple
+              className="hidden"
+              onChange={(e) => addPendingFiles(e.target.files)}
+            />
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={creating}
+              className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Select photos or ZIP
+            </Button>
+            {pendingFiles.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                    {pendingPreviews[i] ? (
+                      <img src={pendingPreviews[i]} alt="" className="h-full w-full object-cover rounded-lg" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center p-2 text-center text-xs text-white/60">
+                        {f.name}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(i)}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white/80 hover:bg-red-500 hover:text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {uploadProgress != null && (
+            <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-4">
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-white">
+                <span className="font-medium">
+                  File {uploadProgress.currentFile ?? 1} of {uploadProgress.totalFiles ?? uploadProgress.total}
+                </span>
+                {uploadProgress.zipTotal != null && (
+                  <span className="text-white/80">
+                    · Archive has {uploadProgress.zipTotal} photos. Added to project: {uploadProgress.zipDone ?? 0} of {uploadProgress.zipTotal}
+                  </span>
+                )}
+              </div>
+              <div className="mb-1 flex justify-between text-xs text-white/60">
+                <span>Added to project: {uploadProgress.uploaded} photos</span>
+                {uploadProgress.totalFiles != null && (() => {
+                  const cur = uploadProgress.currentFile ?? 1;
+                  const totalF = uploadProgress.totalFiles;
+                  const progressInCurrent =
+                    uploadProgress.zipTotal != null
+                      ? (uploadProgress.zipDone ?? 0) / Math.max(1, uploadProgress.zipTotal)
+                      : uploadProgress.uploaded >= cur ? 1 : 0;
+                  const pct = Math.min(100, Math.round(((cur - 1 + progressInCurrent) / totalF) * 100));
+                  return <span>{pct}%</span>;
+                })()}
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-emerald-500/80 transition-all duration-300"
+                  style={{
+                    width: (() => {
+                      const totalF = uploadProgress.totalFiles ?? uploadProgress.total;
+                      const cur = uploadProgress.currentFile ?? 1;
+                      const progressInCurrent =
+                        uploadProgress.zipTotal != null
+                          ? (uploadProgress.zipDone ?? 0) / Math.max(1, uploadProgress.zipTotal)
+                          : uploadProgress.uploaded >= cur ? 1 : 0;
+                      const pct = Math.min(100, ((cur - 1 + progressInCurrent) / totalF) * 100);
+                      return `${pct}%`;
+                    })(),
+                  }}
+                />
+              </div>
+              {uploadProgress.errors.length > 0 && (
+                <div className="mt-2 space-y-1 text-xs text-red-400">
+                  {uploadProgress.errors.map((e, i) => (
+                    <div key={i}>{e}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <Button
+            onClick={createProject}
+            disabled={creating || !titleValidation.isValid}
+            className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+          >
+            {createButtonText}
+          </Button>
+        </div>
 
-        {/* Диагностика сервисов */}
+        {/* 2. Все проекты */}
+        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
+            <FolderOpen className="h-5 w-5" />
+            Projects
+          </h2>
+          {loadingProjects ? (
+            <div className="text-white/50">Loading...</div>
+          ) : projects.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-white/10 p-6 text-center text-white/50">
+              No projects. Create one above.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {projects.map((p) => (
+                <li
+                  key={p.id}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverId(p.id);
+                  }}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverId(null);
+                    const draggedId = e.dataTransfer.getData("text/plain");
+                    if (!draggedId || draggedId === p.id) return;
+                    const fromIndex = projects.findIndex((x) => x.id === draggedId);
+                    const toIndex = projects.findIndex((x) => x.id === p.id);
+                    if (fromIndex === -1 || toIndex === -1) return;
+                    const next = [...projects];
+                    const [removed] = next.splice(fromIndex, 1);
+                    next.splice(toIndex, 0, removed);
+                    setProjects(next);
+                    setReordering(true);
+                    fetch("/api/admin/review-sets/reorder", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ orderedIds: next.map((x) => x.id) }),
+                    })
+                      .then((res) => {
+                        if (!res.ok) loadProjects();
+                      })
+                      .finally(() => setReordering(false));
+                  }}
+                  className={dragOverId === p.id ? "opacity-80" : ""}
+                >
+                  <div
+                    className={`flex items-center justify-between rounded-lg border p-4 text-white transition hover:bg-white/5 ${
+                      dragOverId === p.id ? "border-white/30 bg-white/10" : "border-white/10 bg-black/20"
+                    }`}
+                  >
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", p.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="cursor-grab active:cursor-grabbing touch-none shrink-0 rounded p-1 text-white/40 hover:text-white/70 hover:bg-white/10"
+                      title="Перетащите для изменения порядка"
+                    >
+                      <GripVertical className="h-5 w-5" />
+                    </div>
+                    <Link href={`/admin/review-sets/${p.slug ?? p.id}`} className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {p.icon && (
+                          <span className="text-xl leading-none" role="img" aria-hidden>{p.icon}</span>
+                        )}
+                        <span className="font-medium">{p.title}</span>
+                        {p.isDefault && (
+                          <span className="rounded bg-amber-500/20 text-amber-300 text-xs px-1.5 py-0.5 font-medium">
+                            Standard folder
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-white/50 mt-0.5">
+                        {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · {new Date(p.createdAt).toLocaleDateString()}
+                      </div>
+                    </Link>
+                    {p.firstLink && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Скопировать ссылку"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const url = typeof window !== "undefined" ? `${window.location.origin}/r/${p.firstLink!.token}` : "";
+                          if (url) navigator.clipboard.writeText(url);
+                        }}
+                        className="h-8 w-8 p-0 text-white/50 hover:text-white hover:bg-white/10"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Link
+                      href={`/admin/review-sets/${p.slug ?? p.id}?tab=settings`}
+                      title="Настройки"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Link>
+                    <Link
+                      href={`/admin/review-sets/${p.slug ?? p.id}?tab=stats`}
+                      title="Статистика"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!confirm(`Delete project "${p.title}"?`)) return;
+                        setDeletingProject(p.id);
+                        try {
+                          const res = await fetch(`/api/admin/review-sets/${p.slug ?? p.id}`, { method: "DELETE" });
+                          if (res.ok) loadProjects();
+                          else alert((await res.json()).error || "Error");
+                        } finally {
+                          setDeletingProject(null);
+                        }
+                      }}
+                      disabled={deletingProject === p.id}
+                      className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {reordering && (
+            <p className="mt-2 text-xs text-white/50">Сохранение порядка…</p>
+          )}
+        </div>
+
+        {/* 3. Состояние сервиса */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
             <Activity className="h-5 w-5" />
-            Проверка сервисов
+            Service check
           </h2>
           {loadingHealth ? (
-            <div className="text-white/50">Загрузка...</div>
+            <div className="text-white/50">Loading...</div>
           ) : health ? (
             <div className="space-y-3">
-              <div className={`mb-3 rounded-lg px-3 py-1.5 text-sm font-medium ${health.ok ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
-                {health.ok ? "Всё работает" : "Есть проблемы — проверьте детали ниже"}
+              <div className={`rounded-lg px-3 py-1.5 text-sm font-medium ${health.ok ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                {health.ok ? "All good" : "Issues found"}
               </div>
               {Object.entries(health.checks).map(([key, c]) => (
                 <div key={key} className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <span className="font-medium capitalize text-white">{key.replace(/_/g, " ")}</span>
                     <span className={c.ok ? " text-emerald-400" : " text-red-400"}> — {c.message}</span>
-                    {c.detail && <div className="mt-1 text-xs text-white/60">{c.detail}</div>}
+                    {c.detail && (
+                      <div className="mt-1 text-xs text-white/60 whitespace-pre-wrap break-words">
+                        {c.detail}
+                      </div>
+                    )}
+                    {key === "database" && !c.ok && c.detail && /allow_list|Fix:/i.test(c.detail) && (
+                      <div className="mt-2 rounded bg-amber-500/10 border border-amber-500/20 px-2 py-1.5 text-xs text-amber-200">
+                        <strong>How to fix:</strong> Open your database provider (e.g. Supabase) → Settings → Database → Network → add this server&apos;s IP to the allow list (or 0.0.0.0/0 for dev).
+                      </div>
+                    )}
                   </div>
                   <span className={c.ok ? "text-emerald-400" : "text-red-400"}>{c.ok ? "✓" : "✗"}</span>
                 </div>
               ))}
-              <div className="mt-2 text-xs text-white/40">Проверено: {new Date(health.timestamp).toLocaleString()}</div>
             </div>
           ) : (
-            <div className="text-white/50">Диагностика недоступна</div>
+            <div className="text-white/50">Unavailable</div>
           )}
         </div>
 
-        {/* Server */}
-        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
             <Server className="h-5 w-5" />
             Server
@@ -458,307 +683,24 @@ export default function AdminPage() {
                 <div className="mt-1 font-mono text-sm text-white">
                   {serverInfo.memory.usedMb} / {serverInfo.memory.totalMb} MB ({serverInfo.memory.usedPercent}%)
                 </div>
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-emerald-500/80"
-                    style={{ width: `${Math.min(serverInfo.memory.usedPercent, 100)}%` }}
-                  />
-                </div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Process (RSS)</div>
-                <div className="mt-1 font-mono text-sm text-white">{serverInfo.processMemory.rssMb} MB</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="text-xs text-white/50">Load (1 / 5 / 15 min)</div>
-                <div className="mt-1 font-mono text-sm text-white">
-                  {serverInfo.load.map((l) => l.toFixed(2)).join(" / ")}
-                </div>
+                <div className="text-xs text-white/50">Load</div>
+                <div className="mt-1 font-mono text-sm text-white">{serverInfo.load.map((l) => l.toFixed(2)).join(" / ")}</div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <div className="text-xs text-white/50">Uptime</div>
                 <div className="mt-1 font-mono text-sm text-white">{formatUptime(serverInfo.uptimeSeconds)}</div>
               </div>
-              {serverInfo.disk && (serverInfo.disk.total || serverInfo.disk.used) && (
+              {serverInfo.disk?.used && (
                 <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                   <div className="text-xs text-white/50">Disk</div>
-                  <div className="mt-1 font-mono text-sm text-white">
-                    {serverInfo.disk.used} / {serverInfo.disk.total} ({serverInfo.disk.percent})
-                  </div>
+                  <div className="mt-1 font-mono text-sm text-white">{serverInfo.disk.used} / {serverInfo.disk.total}</div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-white/50">Data unavailable</div>
-          )}
-        </div>
-
-        {/* Projects List */}
-        <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
-            <FolderOpen className="h-5 w-5" />
-            Projects
-          </h2>
-          {loadingProjects ? (
-            <div className="text-white/50">Loading...</div>
-          ) : projects.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/10 p-6 text-center text-white/50">
-              No projects. Create a new one below.
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {projects.map((p) => (
-                <li key={p.id}>
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 p-4 text-white transition hover:bg-white/5">
-                    <Link
-                      href={`/admin/review-sets/${p.id}`}
-                      className="flex-1"
-                    >
-                      <div>
-                        <div className="font-medium">{p.title}</div>
-                        <div className="text-xs text-white/50">
-                          {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · {new Date(p.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </Link>
-                    <div className="flex items-center gap-2 ml-4">
-                      {p.firstLink && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const url = typeof window !== "undefined" ? `${window.location.origin}/r/${p.firstLink!.token}` : `/r/${p.firstLink!.token}`;
-                            navigator.clipboard.writeText(url);
-                            setCopied(p.id);
-                            setTimeout(() => setCopied(null), 2000);
-                          }}
-                          className="text-white/60 hover:text-white hover:bg-white/10"
-                        >
-                          {copied === p.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (!confirm(`Delete project "${p.title}"? This action cannot be undone!`)) return;
-                          
-                          setDeletingProject(p.id);
-                          try {
-                            const res = await fetch(`/api/admin/review-sets/${p.id}`, {
-                              method: "DELETE",
-                            });
-                            
-                            if (res.ok) {
-                              loadProjects();
-                            } else {
-                              const data = await res.json();
-                              alert(data.error || "Error deleting project");
-                            }
-                          } catch (error) {
-                            alert("Error deleting project");
-                          } finally {
-                            setDeletingProject(null);
-                          }
-                        }}
-                        disabled={deletingProject === p.id}
-                        className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      <Link href={`/admin/review-sets/${p.id}`}>
-                        <ChevronRight className="h-5 w-5 text-white/50" />
-                      </Link>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Create New Project */}
-        <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-          <button
-            type="button"
-            onClick={() => setShowCreateForm((v) => !v)}
-            className="mb-4 flex w-full items-center justify-between text-left text-xl font-semibold text-white hover:text-white/90"
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Create New Project
-            </span>
-            <span className="text-white/50">{showCreateForm ? "−" : "+"}</span>
-          </button>
-
-          {showCreateForm && (
-            <>
-              <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-white/80">Project Name</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="my-project (English letters, numbers, dashes only)"
-                  disabled={!!reviewSetId}
-                  className={`w-full rounded-md border-2 ${borderColor} bg-white/5 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 ${
-                    titleValidation.isValid && !reviewSetId
-                      ? "focus:ring-green-500/30"
-                      : title.length > 0 && !titleValidation.checking
-                        ? "focus:ring-red-500/30"
-                        : "focus:ring-white/20"
-                  } transition-colors disabled:opacity-50`}
-                  onKeyPress={(e) => e.key === "Enter" && !reviewSetId && titleValidation.isValid && createProject()}
-                />
-                {title.length > 0 && !reviewSetId && (
-                  <>
-                    <div
-                      className={`mt-2 text-xs ${
-                        titleValidation.isValid
-                          ? "text-green-400"
-                          : titleValidation.checking
-                            ? "text-white/50"
-                            : "text-red-400"
-                      }`}
-                    >
-                      {titleValidation.message || "Enter project name"}
-                    </div>
-                    {titleValidation.isValid && !titleValidation.checking && (
-                      <div className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3">
-                        <div className="text-xs text-green-400 mb-1">Project will be available at:</div>
-                        <div className="font-mono text-sm text-green-300 break-all">
-                          {typeof window !== "undefined" ? `${window.location.origin}/r/${createSlug(title)}` : ""}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-                {!reviewSetId && (
-                  <Button
-                    onClick={createProject}
-                    disabled={creating || !titleValidation.isValid}
-                    className="mt-3 bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-                  >
-                    {creating ? "Creating..." : "Create Project"}
-                  </Button>
-                )}
-              </div>
-
-              {reviewSetId && (
-                <>
-                  <div className="mb-6">
-                    <h3 className="mb-4 text-lg font-semibold text-white">
-                      Upload Photos ({images.length})
-                    </h3>
-                    <div className="mb-4">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,.zip"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleFileUpload(e.target.files)}
-                      />
-                      <Button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload Photos or ZIP Archive
-                      </Button>
-                    </div>
-
-                    {/* Upload Progress */}
-                    {uploadProgress && (
-                      <div className="mb-4 rounded-lg border border-white/10 bg-black/20 p-4">
-                        <div className="mb-2 flex items-center justify-between text-sm text-white">
-                          <span>Uploading: {uploadProgress.uploaded} / {uploadProgress.total}</span>
-                          {uploadProgress.failed > 0 && (
-                            <span className="text-red-400">Failed: {uploadProgress.failed}</span>
-                          )}
-                        </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-emerald-500/80 transition-all"
-                            style={{ width: `${(uploadProgress.uploaded / uploadProgress.total) * 100}%` }}
-                          />
-                        </div>
-                        {uploadProgress.errors.length > 0 && (
-                          <div className="mt-3 space-y-1">
-                            {uploadProgress.errors.map((error, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs text-red-400">
-                                <X className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                <span>{error}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {images.length > 0 && (
-                      <div className="mt-4 grid grid-cols-4 gap-2">
-                        {images.map((img, idx) => (
-                          <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
-                            <img src={img} alt="" className="h-full w-full object-cover" />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {images.length > 0 && !clientLink && (
-                    <div className="mb-6">
-                      <Button onClick={generateLink} className="bg-white/10 text-white hover:bg-white/20">
-                        <LinkIcon className="mr-2 h-4 w-4" />
-                        Generate Link
-                      </Button>
-                    </div>
-                  )}
-
-                  {clientLink && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-white/80">Client Link</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={clientLink}
-                            readOnly
-                            className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white/80"
-                          />
-                          <Button onClick={() => copyToClipboard(clientLink, "client")} className="bg-white/10 text-white hover:bg-white/20">
-                            {copied === "client" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-white/80">Results (Admin)</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={adminLink || ""}
-                            readOnly
-                            className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white/80"
-                          />
-                          <Button
-                            onClick={() => adminLink && copyToClipboard(adminLink, "admin")}
-                            className="bg-white/10 text-white hover:bg-white/20"
-                          >
-                            {copied === "admin" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
+            <div className="text-white/50">No data</div>
           )}
         </div>
       </div>

@@ -187,7 +187,7 @@ export default function ResultsPage() {
                   <img
                     src={getImageUrl(img)}
                     alt=""
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover rounded-lg"
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white text-center">
                     {getDislikeCount(img)} 👎
@@ -208,7 +208,7 @@ export default function ResultsPage() {
                   <img
                     src={getImageUrl(img)}
                     alt=""
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover rounded-lg"
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white text-center">
                     1 ❤️ {getDislikeCount(img) > 0 && `${getDislikeCount(img)} 👎`}
@@ -229,7 +229,7 @@ export default function ResultsPage() {
                   <img
                     src={getImageUrl(img)}
                     alt=""
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover rounded-lg"
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white text-center">
                     2 ❤️
