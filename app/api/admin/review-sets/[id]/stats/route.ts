@@ -8,19 +8,22 @@ export async function GET(
   try {
     const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
-      include: {
+      select: {
+        id: true,
         images: {
-          include: {
-            ratings: true,
+          select: {
+            id: true,
+            filePath: true,
+            url: true,
+            title: true,
+            ratings: { select: { id: true, decision: true, clientId: true } },
           },
         },
         links: {
-          include: {
-            _count: {
-              select: {
-                ratings: true,
-              },
-            },
+          select: {
+            id: true,
+            token: true,
+            _count: { select: { ratings: true } },
           },
         },
       },
@@ -38,16 +41,19 @@ export async function GET(
     const likes = reviewSet.images.reduce((sum, img) => sum + img.ratings.filter(r => r.decision === 'like').length, 0);
     const dislikes = reviewSet.images.reduce((sum, img) => sum + img.ratings.filter(r => r.decision === 'dislike').length, 0);
 
-    // Распределение по количеству лайков (0, 1, 2+)
-    const imagesByLikes: { [key: number]: number } = { 0: 0, 1: 0, 2: 0 };
+    // Распределение по количеству лайков (0, 1, 2+) + списки фото для каждой группы
+    const bucketZero: Array<{ id: string; filePath: string | null; url: string | null; title: string | null }> = [];
+    const bucketOne: typeof bucketZero = [];
+    const bucketTwoPlus: typeof bucketZero = [];
+
     reviewSet.images.forEach(img => {
       const likeCount = img.ratings.filter(r => r.decision === 'like').length;
-      if (likeCount === 0) imagesByLikes[0]++;
-      else if (likeCount === 1) imagesByLikes[1]++;
-      else imagesByLikes[2]++;
+      const item = { id: img.id, filePath: img.filePath, url: img.url, title: img.title };
+      if (likeCount === 0) bucketZero.push(item);
+      else if (likeCount === 1) bucketOne.push(item);
+      else bucketTwoPlus.push(item);
     });
 
-    // Уникальные клиенты
     const uniqueClients = new Set(
       reviewSet.images.flatMap(img => img.ratings.map(r => r.clientId))
     ).size;
@@ -60,9 +66,14 @@ export async function GET(
       dislikes,
       uniqueClients,
       imagesByLikes: {
-        zero: imagesByLikes[0],
-        one: imagesByLikes[1],
-        twoPlus: imagesByLikes[2],
+        zero: bucketZero.length,
+        one: bucketOne.length,
+        twoPlus: bucketTwoPlus.length,
+      },
+      imagesByLikesList: {
+        zero: bucketZero,
+        one: bucketOne,
+        twoPlus: bucketTwoPlus,
       },
       linksStats: reviewSet.links.map(link => ({
         id: link.id,

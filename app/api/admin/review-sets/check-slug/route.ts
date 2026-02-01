@@ -10,11 +10,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ available: false, error: "Slug is required" });
     }
 
-    // Используем findUnique для slug, так как он уникален
+    // Используем findUnique для slug; select только нужных полей (колонка icon может отсутствовать в БД)
     let existing = null;
     try {
       existing = await prisma.reviewSet.findUnique({
         where: { slug: slug },
+        select: { id: true, slug: true },
       });
       
       // Если нашли и нужно исключить определенный ID

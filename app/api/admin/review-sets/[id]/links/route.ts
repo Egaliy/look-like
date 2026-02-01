@@ -9,6 +9,7 @@ export async function POST(
   try {
     const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
+      select: { id: true, slug: true, title: true },
     });
 
     if (!reviewSet) {
@@ -18,8 +19,7 @@ export async function POST(
       );
     }
 
-    // Используем slug проекта как token для ссылки
-    const slug = (reviewSet as any).slug;
+    const slug = reviewSet.slug;
     if (!slug) {
       // Если slug нет, генерируем из title
       const fallbackSlug = reviewSet.title
@@ -31,7 +31,7 @@ export async function POST(
       
       if (!fallbackSlug) {
         return NextResponse.json(
-          { error: "Не удалось создать slug из названия проекта" },
+          { error: "Could not create slug from project name" },
           { status: 400 }
         );
       }

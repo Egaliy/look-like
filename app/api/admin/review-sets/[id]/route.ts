@@ -1,27 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+/** Cuid обычно начинается с "c" и имеет фиксированную длину. Иначе считаем, что передан slug. */
+function isCuid(value: string): boolean {
+  return /^c[a-z0-9]{24}$/i.test(value);
+}
+
+/** select без icon — колонка icon может отсутствовать в БД */
+const reviewSetSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  description: true,
+  order: true,
+  maxImagesToRate: true,
+  createdAt: true,
+  updatedAt: true,
+  images: {
+    orderBy: { order: "asc" as const },
+    select: {
+      id: true,
+      reviewSetId: true,
+      url: true,
+      filePath: true,
+      order: true,
+      title: true,
+      metadata: true,
+      createdAt: true,
+    },
+  },
+  links: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      id: true,
+      token: true,
+      adminToken: true,
+      reviewSetId: true,
+      maxSessions: true,
+      allowResume: true,
+      expiresAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+} as const;
+
+async function findReviewSetByIdOrSlug(idOrSlug: string) {
+  if (isCuid(idOrSlug)) {
+    const byId = await prisma.reviewSet.findUnique({
+      where: { id: idOrSlug },
+      select: reviewSetSelect,
+    });
+    if (byId) return byId;
+  }
+  return prisma.reviewSet.findUnique({
+    where: { slug: idOrSlug },
+    select: reviewSetSelect,
+  });
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const reviewSet = await prisma.reviewSet.findUnique({
-      where: { id: params.id },
-      include: {
-        images: {
-          orderBy: {
-            order: "asc",
-          },
-        },
-        links: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    });
-
+    const reviewSet = await findReviewSetByIdOrSlug(params.id);
     if (!reviewSet) {
       return NextResponse.json(
         { error: "Review set not found" },
@@ -32,8 +75,11 @@ export async function GET(
     return NextResponse.json({
       id: reviewSet.id,
       title: reviewSet.title,
-      slug: (reviewSet as any).slug || null,
+      slug: reviewSet.slug ?? null,
       description: reviewSet.description,
+      icon: null as string | null,
+      isDefault: false,
+      maxImagesToRate: reviewSet.maxImagesToRate ?? null,
       createdAt: reviewSet.createdAt.toISOString(),
       updatedAt: reviewSet.updatedAt.toISOString(),
       images: reviewSet.images.map((img) => ({
@@ -67,18 +113,78 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const reviewSet = await findReviewSetByIdOrSlug(params.id);
+    if (!reviewSet) {
+      return NextResponse.json(
+        { error: "Review set not found" },
+        { status: 404 }
+      );
+    }
+    const body = await request.json().catch(() => ({}));
+    const updateData: { maxImagesToRate?: number | null; icon?: string | null } = {};
+    if (Object.prototype.hasOwnProperty.call(body, "icon")) {
+      const v = body.icon;
+      updateData.icon = v === null || v === "" ? null : String(v).trim().slice(0, 20) || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "maxImagesToRate")) {
+      const v = body.maxImagesToRate;
+      updateData.maxImagesToRate =
+        v === null || v === "" ? null : Math.max(1, Math.min(Number.parseInt(String(v), 10) || 40, 9999));
+    }
+    if (Object.keys(updateData).length > 0) {
+      await prisma.reviewSet.update({
+        where: { id: reviewSet.id },
+        data: updateData,
+      });
+    }
+    const updated = await prisma.reviewSet.findUnique({
+      where: { id: reviewSet.id },
+      select: { id: true, title: true, slug: true, description: true, order: true, maxImagesToRate: true, createdAt: true, updatedAt: true },
+    });
+    if (!updated) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      id: updated.id,
+      title: updated.title,
+      slug: updated.slug ?? null,
+      description: updated.description ?? null,
+      icon: null as string | null,
+      isDefault: false,
+      maxImagesToRate: updated.maxImagesToRate ?? null,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    });
+  } catch (error: any) {
+    const msg = error?.message ?? "";
+    if (msg.includes("isDefault") || msg.includes("Unknown argument") || msg.includes("icon")) {
+      return NextResponse.json(
+        {
+          error:
+            "Поле isDefault ещё не в базе. Выполните миграцию: в корне проекта запустите `npx prisma db push` или выполните SQL из prisma/migrations/README-migrations.md, затем `npx prisma generate` и перезапустите сервер.",
+        },
+        { status: 500 }
+      );
+    }
+    console.error("Error updating review set:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const reviewSet = await prisma.reviewSet.findUnique({
-      where: { id: params.id },
-      include: {
-        images: true,
-      },
-    });
-
+    const reviewSet = await findReviewSetByIdOrSlug(params.id);
     if (!reviewSet) {
       return NextResponse.json(
         { error: "Review set not found" },
@@ -100,9 +206,8 @@ export async function DELETE(
       }
     }
 
-    // Удаляем проект (каскадно удалятся все связанные данные)
     await prisma.reviewSet.delete({
-      where: { id: params.id },
+      where: { id: reviewSet.id },
     });
 
     return NextResponse.json({ success: true });

@@ -9,9 +9,9 @@ export async function POST(
     const body = await request.json();
     const { filePath, url, title } = body;
 
-    // Проверяем, что review set существует
     const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },
+      select: { id: true },
     });
 
     if (!reviewSet) {
