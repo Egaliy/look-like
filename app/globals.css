@@ -2,9 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Figma design tokens (autolayout) */
 :root {
   --background: #000000;
   --foreground: #ffffff;
+
+  /* Menu (Frame menu) — Figma: fill 60%, stroke gradient 10%→0, blur 18.75px */
+  --menu-width: 180px;
+  --menu-height: 64px;
+  --menu-padding: 8px;
+  --menu-gap: 10px;
+  --menu-radius: 123px;
+  --menu-fill: rgba(0, 0, 0, 0.6);
+  --menu-stroke-width: 1.171875px;
+  --menu-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  --menu-shadow: 0 12.890625px 11.71875px 0 rgba(0, 0, 0, 0.3);
+  --menu-blur-px: 18.75;
+  --menu-blur: 18.75px;
+
+  /* Menu buttons — Figma: fill 5%, stroke gradient 5%→0, без своего blur */
+  --menu-btn-size: 48px;
+  --menu-btn-fill: rgba(255, 255, 255, 0.05);
+  --menu-btn-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+  --menu-btn-radius: 123px;
+
+  /* Circle action (Dislike/Like/Undo) */
+  --circle-size: 64px;
+  --circle-fill: rgba(0, 0, 0, 0.41);
+  --circle-stroke-gradient: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  --circle-radius: 32px;
+  --circle-shadow: 0 12.89px 11.72px 0 rgba(0, 0, 0, 0.3);
+
+  /* Icon */
+  --icon-size: 20.508px;
+  --icon-stroke: #8e8e8d;
+  --icon-stroke-width: 2.9296875;
+
+  /* Photo area — отступ минимум 32px с каждой стороны, скругление 16px */
+  --photo-inset: 32px;
+  --photo-radius: 16px;
+  --zone-width: 120px;
+  --footer-height: 64px;
 }
 
 body {
