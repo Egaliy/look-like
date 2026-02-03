@@ -136,7 +136,7 @@ export default function ResultsPage() {
         {/* Sessions List */}
         {sessions.length > 0 && (
           <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-xl font-semibold text-white flex items-center gap-2">
+            <h2 className="mb-4 text-white flex items-center gap-2" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
               <User className="h-5 w-5" />
               Sessions ({sessions.length})
             </h2>
@@ -178,7 +178,7 @@ export default function ResultsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 0 likes */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-xl font-semibold text-white">
+            <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
               0 likes ({groupedImages.zero.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">
@@ -199,7 +199,7 @@ export default function ResultsPage() {
 
           {/* 1 like */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-xl font-semibold text-white">
+            <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
               1 like ({groupedImages.one.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">
@@ -220,7 +220,7 @@ export default function ResultsPage() {
 
           {/* 2 likes */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-xl font-semibold text-white">
+            <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
               2 likes ({groupedImages.two.length})
             </h2>
             <div className="grid grid-cols-2 gap-2">

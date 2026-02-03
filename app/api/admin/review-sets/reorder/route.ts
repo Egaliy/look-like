@@ -13,15 +13,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const lastId = orderedIds[orderedIds.length - 1];
-    await prisma.$transaction([
-      ...orderedIds.map((id: string, index: number) =>
+    await prisma.$transaction(
+      orderedIds.map((id: string, index: number) =>
         prisma.reviewSet.update({
           where: { id },
-          data: { order: index, isDefault: id === lastId },
+          data: { order: index },
         })
-      ),
-    ]);
+      )
+    );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

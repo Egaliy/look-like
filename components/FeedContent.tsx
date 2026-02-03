@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Images, ArrowLeft } from "lucide-react";
+import { Heart, Images, ArrowLeft, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/Loader";
 
 const iconStroke = "var(--icon-stroke)";
 const iconSize = 20.508;
@@ -12,21 +13,31 @@ const iconStrokeWidth = 2.93;
 
 function IconDislike({ active = true }: { active?: boolean }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={iconSize}
-      height={iconSize}
-      viewBox="0 0 24 24"
-      fill="none"
-      className={active ? "text-white" : "text-white opacity-30"}
-    >
-      <path
-        d="M1.46484 21.9727L21.9727 1.46485M1.46484 1.46484L21.9727 21.9727"
-        stroke="currentColor"
-        strokeWidth={iconStrokeWidth}
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src="/img/cross.svg"
+      alt="Dislike"
+      className={active ? "opacity-100" : "opacity-30"}
+      style={{
+        width: `${iconSize}px`,
+        height: `${iconSize}px`,
+        display: "block",
+      }}
+    />
+  );
+}
+
+function IconLike({ active = true }: { active?: boolean }) {
+  return (
+    <img
+      src="/img/check.svg"
+      alt="Like"
+      className={active ? "opacity-100" : "opacity-30"}
+      style={{
+        width: `${iconSize}px`,
+        height: `${iconSize}px`,
+        display: "block",
+      }}
+    />
   );
 }
 
@@ -40,26 +51,75 @@ export interface RefItem {
 
 function PhotoCard({ refItem }: { refItem: RefItem }) {
   const radius = 16;
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+
   return (
-    <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-2xl" style={{ borderRadius: radius }}>
-      <div className="absolute inset-0 flex items-center justify-center" aria-hidden>
-        <img
-          src={refItem.url}
-          alt=""
-          className="h-full w-full object-contain opacity-30 rounded-2xl"
+    <div className="absolute inset-0 flex items-center justify-center">
+      {/* Свечение сзади — размытая фотография */}
+      {imgSize && (
+        <div
+          className="absolute"
           style={{
-            borderRadius: radius,
-            filter: "blur(50px)",
-            transform: "scale(1.08)",
+            width: `${imgSize.w}px`,
+            height: `${imgSize.h}px`,
+            maxWidth: "calc(100% - 64px)",
+            maxHeight: "calc(100% - 64px)",
+            borderRadius: `${radius}px`,
+            overflow: "hidden",
+            clipPath: `inset(0 round ${radius}px)`,
+            WebkitClipPath: `inset(0 round ${radius}px)`,
+            filter: "blur(40px)",
+            opacity: 0.3,
+            transform: "scale(1.1)",
+            zIndex: 0,
           }}
-        />
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-2xl" style={{ borderRadius: radius }}>
+          aria-hidden
+        >
+          <img
+            src={refItem.url}
+            alt=""
+            className="block"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+            }}
+          />
+        </div>
+      )}
+      {/* Фото в оригинальном размере */}
+      <div
+        className="relative z-10"
+        style={{
+          width: imgSize ? `${imgSize.w}px` : "auto",
+          height: imgSize ? `${imgSize.h}px` : "auto",
+          maxWidth: "calc(100% - 64px)",
+          maxHeight: "calc(100% - 64px)",
+          borderRadius: `${radius}px`,
+          overflow: "hidden",
+          clipPath: `inset(0 round ${radius}px)`,
+          WebkitClipPath: `inset(0 round ${radius}px)`,
+        }}
+      >
         <img
           src={refItem.url}
           alt={refItem.title}
-          className="h-full w-full object-contain rounded-2xl"
-          style={{ borderRadius: radius }}
+          className="block"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+            borderRadius: `${radius}px`,
+            clipPath: `inset(0 round ${radius}px)`,
+            WebkitClipPath: `inset(0 round ${radius}px)`,
+          }}
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            if (img.naturalWidth && img.naturalHeight) {
+              setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+            }
+          }}
         />
       </div>
     </div>
@@ -70,14 +130,12 @@ interface CircleActionProps {
   icon: React.ReactNode;
   onClick: () => void;
   disabled: boolean;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
   /** При нажатии: убрать обводку, залить фон (green/red), иконка белая */
   pressed?: boolean;
   variant?: "like" | "dislike";
 }
 
-function CircleAction({ icon, onClick, disabled, onMouseEnter, onMouseLeave, pressed, variant }: CircleActionProps) {
+function CircleAction({ icon, onClick, disabled, pressed, variant }: CircleActionProps) {
   const isFilled = pressed && variant;
   const bgColor = variant === "like" ? "rgb(34, 197, 94)" : variant === "dislike" ? "rgb(239, 68, 68)" : "var(--circle-fill)";
 
@@ -91,9 +149,8 @@ function CircleAction({ icon, onClick, disabled, onMouseEnter, onMouseLeave, pre
         background: isFilled ? "transparent" : "var(--circle-stroke-gradient)",
         borderRadius: "var(--circle-radius)",
         boxShadow: "var(--circle-shadow)",
+        pointerEvents: "none",
       }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
       whileHover={disabled ? undefined : { scale: 1.08 }}
       transition={{ type: "spring", stiffness: 250, damping: 22 }}
     >
@@ -105,6 +162,7 @@ function CircleAction({ icon, onClick, disabled, onMouseEnter, onMouseLeave, pre
         style={{
           background: isFilled ? bgColor : "var(--circle-fill)",
           borderRadius: isFilled ? "var(--circle-radius)" : "calc(var(--circle-radius) - 1px)",
+          pointerEvents: "none",
         }}
       >
         {icon}
@@ -130,65 +188,104 @@ export function FeedContent({
   const [clientId, setClientId] = useState<string>("");
   const [userName, setUserName] = useState("");
   const [hasCheckedNameStorage, setHasCheckedNameStorage] = useState(false);
+  const [nameInputValue, setNameInputValue] = useState("");
+  const [nameInputFocused, setNameInputFocused] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") setHasCheckedNameStorage(true);
   }, []);
 
   useEffect(() => {
-    setLoadError(null);
-    let storedClientId = localStorage.getItem(`clientId_${token}`);
-    let storedSessionId = localStorage.getItem(`sessionId_${token}`);
+    const loadData = async () => {
+      const startTime = Date.now();
+      setLoadError(null);
+      let storedClientId = localStorage.getItem(`clientId_${token}`);
+      let storedSessionId = localStorage.getItem(`sessionId_${token}`);
 
-    if (!storedClientId) {
-      storedClientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem(`clientId_${token}`, storedClientId);
-    }
-    if (!storedSessionId) {
-      storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      localStorage.setItem(`sessionId_${token}`, storedSessionId);
-    }
-    setClientId(storedClientId);
+      if (!storedClientId) {
+        storedClientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem(`clientId_${token}`, storedClientId);
+      }
+      if (!storedSessionId) {
+        storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        localStorage.setItem(`sessionId_${token}`, storedSessionId);
+      }
+      setClientId(storedClientId);
 
-    if (initialRefs != null && initialRefs.length > 0) {
-      setRefs(initialRefs);
-      setLoading(false);
-      return;
-    }
+      if (initialRefs != null && initialRefs.length > 0) {
+        const elapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, 1000 - elapsed);
+        await new Promise((resolve) => setTimeout(resolve, remainingTime));
+        setRefs(initialRefs);
+        setLoading(false);
+        return;
+      }
 
-    fetch(`/api/r/${token}`)
-      .then((res) => {
+      try {
+        // Запускаем загрузку и таймер параллельно
+        const fetchPromise = fetch(`/api/r/${token}`);
+        const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        
+        // Ждем минимум 1 секунду
+        await Promise.all([fetchPromise, timeoutPromise]);
+        
+        const res = await fetchPromise;
+
         if (!res.ok) {
           if (res.status === 404) throw new Error("Project not found");
           if (res.status === 410) throw new Error("Link expired");
           throw new Error("Failed to load project");
         }
-        return res.json();
-      })
-      .then((data) => {
+
+        const data = await res.json();
         const list = Array.isArray(data.images) ? data.images : [];
-        setRefs(
-          list.map((img: any, i: number) => ({
-            id: img.id,
-            title: img.title || `Reference #${i + 1}`,
-            subtitle: "Swipe to rate",
-            url: img.filePath || img.url || "",
-          }))
-        );
+        if (list.length > 0) {
+          setRefs(
+            list.map((img: any, i: number) => ({
+              id: img.id,
+              title: img.title || `Reference #${i + 1}`,
+              subtitle: "Swipe to rate",
+              url: img.filePath || img.url || "",
+            }))
+          );
+          setLoading(false);
+          return;
+        }
+        // В проекте нет фото — подставляем тестовые из imgs
+        try {
+          const testRes = await fetch("/api/test-images");
+          const testData = testRes.ok ? await testRes.json() : null;
+          const testList = Array.isArray(testData?.images) ? testData.images : [];
+          if (testList.length > 0) {
+            setRefs(
+              testList.map((img: any) => ({
+                id: img.id,
+                title: img.title || "Reference",
+                subtitle: "Swipe to rate",
+                url: img.url || "",
+              }))
+            );
+          } else {
+            setRefs([]);
+          }
+        } catch {
+          setRefs([]);
+        }
         setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         setRefs([]);
         setLoadError(err instanceof Error ? err.message : "Load error");
         setLoading(false);
-      });
+      }
+    };
+
+    loadData();
   }, [token, initialRefs]);
 
   const remaining = Math.max(0, refs.length - index);
   const progress = Math.min(refs.length, index);
 
   const current = refs[index] ?? null;
-  const next = refs[index + 1] ?? null;
 
   const likedList = useMemo(() => {
     const s = likedIds;
@@ -197,17 +294,20 @@ export function FeedContent({
 
   const [lastAction, setLastAction] = useState<"like" | "dislike" | null>(null);
   const [pressedButton, setPressedButton] = useState<"like" | "dislike" | null>(null);
-  const [showNextPreview, setShowNextPreview] = useState(false);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
   const pressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitActionRef = useRef<Map<string, "like" | "dislike">>(new Map());
 
   function commit(action: "like" | "dislike") {
     if (!current) return;
+    // Сохраняем действие для этой карточки перед изменением индекса
+    exitActionRef.current.set(current.id, action);
     setLastAction(action);
     setPressedButton(action);
     if (pressTimeoutRef.current) clearTimeout(pressTimeoutRef.current);
     pressTimeoutRef.current = setTimeout(() => setPressedButton(null), 900);
     setHistory((h) => [...h, { id: current.id, action }]);
-    if (action === "like") setShowNextPreview(true);
 
     if (action === "like") {
       setLikedIds((prev) => {
@@ -235,6 +335,7 @@ export function FeedContent({
           orderIndex: index,
           clientId: clientId,
           sessionId: sessionId,
+          userName: userName || null,
         }),
       }).catch(console.error);
     }
@@ -273,26 +374,34 @@ export function FeedContent({
   useEffect(() => {
     const el = photoAreaRef.current;
     if (!el) return;
-    const SWIPE_THRESHOLD = 80;
+    const SWIPE_THRESHOLD = 60;
     const handleWheel = (e: WheelEvent) => {
       if (!current) return;
       const { deltaX, deltaY } = e;
-      if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
+      // Для trackpad учитываем и горизонтальный, и вертикальный скролл
+      const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+      if (!isHorizontal && Math.abs(deltaX) < 5) return;
       e.preventDefault();
       if (wheelResetRef.current) {
         clearTimeout(wheelResetRef.current);
         wheelResetRef.current = null;
       }
       wheelAccumRef.current += deltaX;
+      // Визуальная обратная связь во время свайпа
+      const progress = Math.min(1, Math.abs(wheelAccumRef.current) / SWIPE_THRESHOLD);
+      setDragOffset(wheelAccumRef.current * 0.5);
       if (wheelAccumRef.current > SWIPE_THRESHOLD) {
         wheelAccumRef.current = 0;
+        setDragOffset(0);
         commit("like");
       } else if (wheelAccumRef.current < -SWIPE_THRESHOLD) {
         wheelAccumRef.current = 0;
+        setDragOffset(0);
         commit("dislike");
       }
       wheelResetRef.current = setTimeout(() => {
         wheelAccumRef.current = 0;
+        setDragOffset(0);
         wheelResetRef.current = null;
       }, 200);
     };
@@ -319,24 +428,39 @@ export function FeedContent({
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!current || e.button !== 0 || e.pointerType === "touch") return;
     dragStartXRef.current = e.clientX;
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!current || !isDragging || dragStartXRef.current == null || e.pointerType === "touch") return;
+    const delta = e.clientX - dragStartXRef.current;
+    setDragOffset(delta);
+    // Визуальная обратная связь - наклон фото во время drag
+    if (Math.abs(delta) > 10) {
+      setHoveredAction(delta > 0 ? "like" : "dislike");
+    } else {
+      setHoveredAction(null);
+    }
   };
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!current || dragStartXRef.current == null || e.button !== 0 || e.pointerType === "touch") return;
     const delta = e.clientX - dragStartXRef.current;
     dragStartXRef.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
+    setHoveredAction(null);
     if (delta > SWIPE_THRESHOLD) commit("like");
     else if (delta < -SWIPE_THRESHOLD) commit("dislike");
   };
   const handlePointerCancel = () => {
     dragStartXRef.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
+    setHoveredAction(null);
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div>Loading...</div>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (loadError || refs.length === 0) {
@@ -361,50 +485,99 @@ export function FeedContent({
 
   // Не показывать ленту до проверки имени (клиент смонтирован) — иначе первый рендер покажет ленту вместо формы
   if (!hasCheckedNameStorage) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div className="text-white/60">Загрузка…</div>
-      </div>
-    );
+    return <Loader />;
   }
 
   const showNameScreen = !userName.trim();
 
   if (showNameScreen) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-black px-4 text-white">
+      <div
+        className="fixed inset-0 flex items-center justify-center"
+        style={{
+          background: "rgba(0, 0, 0, 0.8)",
+          backdropFilter: "blur(64px)",
+          WebkitBackdropFilter: "blur(64px)",
+        }}
+      >
         <motion.div
-          className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 p-8"
+          className="flex flex-col"
+          style={{ gap: 24 }}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
         >
-          <h2 className="mb-2 text-xl font-semibold text-white">Enter your name</h2>
-          <p className="mb-6 text-sm text-white/60">Before you start rating</p>
+          <div
+            className="text-white"
+            style={{
+              fontSize: "28px",
+              fontWeight: 400,
+              lineHeight: "34px",
+              height: "34px",
+            }}
+          >
+            Type your name:
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const input = e.currentTarget.querySelector("input") as HTMLInputElement;
-              const trimmed = (input?.value ?? "").trim();
+              const trimmed = nameInputValue.trim();
               if (!trimmed) return;
               localStorage.setItem(`userName_${token}`, trimmed);
               setUserName(trimmed);
             }}
-            className="flex flex-col gap-4"
+            className="flex items-center"
+            style={{
+              width: "430px",
+              height: "70px",
+              border: `1px solid rgba(255, 255, 255, ${nameInputValue.trim() || nameInputFocused ? 1 : 0.3})`,
+              borderRadius: "16px",
+              gap: 10,
+              padding: "8px",
+              transition: "border-color 0.3s ease",
+            }}
           >
             <input
               type="text"
               autoFocus
-              placeholder="Your name"
+              value={nameInputValue}
+              onChange={(e) => setNameInputValue(e.target.value)}
+              onFocus={() => setNameInputFocused(true)}
+              onBlur={() => setNameInputFocused(false)}
+              placeholder="Sean"
               maxLength={100}
-              className="w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/40"
+              className="flex-1 bg-transparent placeholder:text-white/30 focus:outline-none"
+              style={{
+                paddingLeft: "16px",
+                fontSize: "19px",
+                lineHeight: "23px",
+                height: "23px",
+                color: nameInputValue.trim() ? "rgba(255, 255, 255, 1)" : "rgba(255, 255, 255, 0.3)",
+                transition: "color 0.3s ease",
+              }}
             />
-            <Button
+            <button
               type="submit"
-              className="w-full rounded-xl bg-white text-black hover:bg-white/90"
+              disabled={!nameInputValue.trim()}
+              className="flex items-center justify-center disabled:cursor-not-allowed"
+              style={{
+                width: "54px",
+                height: "54px",
+                borderRadius: "12px",
+                flexShrink: 0,
+                background: nameInputValue.trim() ? "rgba(255, 255, 255, 1)" : "rgba(255, 255, 255, 0.1)",
+                transition: "background-color 0.3s ease",
+              }}
             >
-              Start
-            </Button>
+              <ArrowRight
+                size={16}
+                strokeWidth={2}
+                style={{
+                  color: nameInputValue.trim() ? "rgba(0, 0, 0, 1)" : "rgba(255, 255, 255, 0.2)",
+                  transition: "color 0.3s ease",
+                }}
+              />
+            </button>
           </form>
         </motion.div>
       </div>
@@ -413,6 +586,11 @@ export function FeedContent({
 
   return (
     <div className="fixed inset-0 flex flex-col bg-black">
+      {/* Размытые белые фигуры на фоне */}
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/5 blur-3xl" />
+      </div>
       <AnimatePresence mode="wait">
         {mode === "gallery" ? (
           <motion.div
@@ -422,7 +600,65 @@ export function FeedContent({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
           >
-            <header className="flex shrink-0 items-center justify-center pt-1 pb-2 px-[var(--photo-inset)]" style={{ height: "var(--footer-height)", minHeight: "var(--footer-height)", display: "flex" }}>
+            <div className="flex-1 overflow-auto px-4 py-4 min-h-0">
+              <div className="mb-3 flex items-center gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    Liked gallery
+                  </div>
+                  <div className="text-xs text-white/60">
+                    {likedList.length} saved
+                  </div>
+                </div>
+              </div>
+
+              <Card className="border-white/10 bg-white/5">
+                <CardContent className="p-3">
+                  {likedList.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-center">
+                      <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+                        <Heart className="h-5 w-5 text-white/70" />
+                      </div>
+                      <div className="text-sm font-semibold text-white">
+                        No likes yet
+                      </div>
+                      <div className="mt-1 text-xs text-white/60">
+                        Tap ❤️ to save references here.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {likedList
+                        .slice()
+                        .reverse()
+                        .map((r) => (
+                          <div
+                            key={r.id}
+                            className="group overflow-hidden rounded-xl border border-white/10 bg-black/20"
+                          >
+                            <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
+                              <img
+                                src={r.url}
+                                alt={r.title}
+                                className="h-full w-full object-cover rounded-xl"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
+                              <div className="absolute bottom-2 left-2 right-2">
+                                <div className="text-xs font-semibold text-white/95">
+                                  {r.title}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            {/* Меню скрыто
+            <footer className="flex shrink-0 items-center justify-center pt-1 pb-8 px-[var(--photo-inset)]" style={{ height: "var(--footer-height)", minHeight: "var(--footer-height)", display: "flex", paddingBottom: 32 }}>
               <div
                 className="flex w-full max-w-[var(--menu-width)] items-center justify-between rounded-[123px]"
                 style={{
@@ -494,64 +730,8 @@ export function FeedContent({
                   </div>
                 </div>
               </div>
-            </header>
-            <div className="flex-1 overflow-auto px-4 py-4">
-              <div className="mb-3 flex items-center gap-2">
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    Liked gallery
-                  </div>
-                  <div className="text-xs text-white/60">
-                    {likedList.length} saved
-                  </div>
-                </div>
-              </div>
-
-              <Card className="border-white/10 bg-white/5">
-                <CardContent className="p-3">
-                  {likedList.length === 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-center">
-                      <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-                        <Heart className="h-5 w-5 text-white/70" />
-                      </div>
-                      <div className="text-sm font-semibold text-white">
-                        No likes yet
-                      </div>
-                      <div className="mt-1 text-xs text-white/60">
-                        Tap ❤️ to save references here.
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      {likedList
-                        .slice()
-                        .reverse()
-                        .map((r) => (
-                          <div
-                            key={r.id}
-                            className="group overflow-hidden rounded-xl border border-white/10 bg-black/20"
-                          >
-                            <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
-                              <img
-                                src={r.url}
-                                alt={r.title}
-                                className="h-full w-full object-cover rounded-xl"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
-                              <div className="absolute bottom-2 left-2 right-2">
-                                <div className="text-xs font-semibold text-white/95">
-                                  {r.title}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            </footer>
+            */}
           </motion.div>
         ) : (
           <motion.div
@@ -561,7 +741,193 @@ export function FeedContent({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
           >
-            <header className="flex shrink-0 flex-col items-center justify-center pt-1 pb-2 px-[var(--photo-inset)]" style={{ height: "var(--footer-height)", minHeight: "var(--footer-height)" }}>
+            <div
+              className="relative flex-1 min-h-0"
+              style={{ marginBottom: 0 }}
+            >
+              <div
+                ref={photoAreaRef}
+                className="absolute inset-0 z-10 box-border"
+                style={{
+                  padding: "32px",
+                }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+              >
+                {/* <span className="absolute left-0 right-0 top-2 z-20 text-center text-xl font-medium text-white/70" aria-hidden>
+                  {progress} / {refs.length}
+                </span> */}
+                <div
+                  className="h-full w-full relative"
+                >
+                  <motion.div
+                    className="absolute inset-0"
+                    style={{
+                      transformOrigin: "center center",
+                      transformStyle: "preserve-3d",
+                      backfaceVisibility: "hidden",
+                      willChange: "transform",
+                    }}
+                    animate={{
+                      x: isDragging ? dragOffset : hoveredAction === "dislike" ? -56 : hoveredAction === "like" ? 56 : 0,
+                      rotate: isDragging
+                        ? dragOffset * 0.03
+                        : hoveredAction === "dislike"
+                          ? -1.5
+                          : hoveredAction === "like"
+                            ? 1.5
+                            : 0,
+                    }}
+                    transition={{
+                      duration: isDragging ? 0 : 0.75,
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                  >
+                    <div
+                      className="relative h-full w-full"
+                      style={{ transformOrigin: "center center" }}
+                    >
+                      <AnimatePresence mode="wait">
+                    {current ? (
+                      <motion.div
+                        key={current.id}
+                        className="absolute inset-0 z-10 flex items-center justify-center"
+                        style={{
+                          transformStyle: "preserve-3d",
+                          backfaceVisibility: "hidden",
+                          willChange: "transform",
+                        }}
+                        initial={{ opacity: 0.65, scale: 0.94 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={() => {
+                          const action = exitActionRef.current.get(current.id) || null;
+                          return {
+                            x: action === "like" ? 800 : action === "dislike" ? -800 : 0,
+                            y: -200,
+                            rotate: action === "like" ? 25 : action === "dislike" ? -25 : 0,
+                            opacity: 0,
+                            scale: 0.8,
+                            transition: { duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] },
+                          };
+                        }}
+                        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+                        onAnimationComplete={() => {
+                          // Очищаем действие после завершения анимации
+                          if (current) {
+                            exitActionRef.current.delete(current.id);
+                          }
+                        }}
+                      >
+                        <PhotoCard refItem={current} />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="done"
+                        className="flex h-full w-full flex-col items-center justify-center p-8"
+                        style={{ textAlign: "center" }}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+                      >
+                        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+                          <Heart className="h-7 w-7 text-white/80" />
+                        </div>
+                        <div className="text-lg font-semibold text-white" style={{ textAlign: "center", width: "100%" }}>
+                          All done
+                        </div>
+                        <div className="mt-2 text-sm text-white/60" style={{ textAlign: "center", width: "100%" }}>
+                          You liked {likedList.length} out of {refs.length}{" "}
+                          references.
+                        </div>
+                      </motion.div>
+                    )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Красный градиент слева при наведении на Dislike — за фото */}
+              <motion.div
+                className="pointer-events-none fixed left-0 top-0 bottom-0 z-0 w-[280px]"
+                style={{
+                  background: "linear-gradient(to right, rgba(239, 68, 68, 0.35), transparent)",
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: hoveredAction === "dislike" ? 1 : 0 }}
+                transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+              />
+              {/* Зелёный градиент справа при наведении на Like — за фото */}
+              <motion.div
+                className="pointer-events-none fixed right-0 top-0 bottom-0 z-0 w-[280px]"
+                style={{
+                  background: "linear-gradient(to left, rgba(34, 197, 94, 0.35), transparent)",
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: hoveredAction === "like" ? 1 : 0 }}
+                transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+              />
+              {current && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute left-0 top-0 z-10 h-full cursor-pointer"
+                    style={{ touchAction: "manipulation", width: "var(--zone-width)" }}
+                    onClick={() => commit("dislike")}
+                    onMouseEnter={() => setHoveredAction("dislike")}
+                    onMouseLeave={() => setHoveredAction(null)}
+                    aria-label="Dislike"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-0 top-0 z-10 h-full cursor-pointer"
+                    style={{ touchAction: "manipulation", width: "var(--zone-width)" }}
+                    onClick={() => commit("like")}
+                    onMouseEnter={() => setHoveredAction("like")}
+                    onMouseLeave={() => setHoveredAction(null)}
+                    aria-label="Like"
+                  />
+                </>
+              )}
+
+              <div
+                className="absolute left-0 right-0 z-0 flex items-center justify-between px-4 pointer-events-none"
+                style={{ top: "50%", transform: "translateY(-50%)" }}
+              >
+                <CircleAction
+                  icon={<IconDislike active={!!current || pressedButton === "dislike" || hoveredAction === "dislike"} />}
+                  onClick={() => commit("dislike")}
+                  disabled={!current}
+                  pressed={pressedButton === "dislike" || hoveredAction === "dislike"}
+                  variant="dislike"
+                />
+                <CircleAction
+                  icon={
+                    <IconLike active={!!current || pressedButton === "like" || hoveredAction === "like"} />
+                  }
+                  onClick={() => commit("like")}
+                  disabled={!current}
+                  pressed={pressedButton === "like" || hoveredAction === "like"}
+                  variant="like"
+                />
+              </div>
+            </div>
+            {/* Свечение снизу — мягкий градиент */}
+            <div
+              className="pointer-events-none fixed left-0 right-0 bottom-0 z-0"
+              style={{
+                height: "120px",
+                background: "linear-gradient(to top, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3) 40%, transparent)",
+              }}
+              aria-hidden
+            />
+            {/* Меню скрыто
+            <footer className="flex shrink-0 items-center justify-center pt-1 pb-8 px-[var(--photo-inset)]" style={{ height: "var(--footer-height)", minHeight: "var(--footer-height)", paddingBottom: 32 }}>
               <div
                 className="flex w-full max-w-[var(--menu-width)] items-center justify-between rounded-[123px]"
                 style={{
@@ -638,181 +1004,8 @@ export function FeedContent({
                   </div>
                 </div>
               </div>
-            </header>
-            <div
-              className="relative flex-1 min-h-0"
-              style={{ marginBottom: 0 }}
-            >
-              <div
-                ref={photoAreaRef}
-                className="absolute inset-0 z-10 box-border"
-                style={{
-                  padding: 32,
-                }}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-                onPointerDown={handlePointerDown}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
-              >
-                <span className="absolute left-0 right-0 top-2 z-20 text-center text-xl font-medium text-white/70" aria-hidden>
-                  {progress} / {refs.length}
-                </span>
-                <div
-                  className="h-full w-full overflow-hidden rounded-2xl bg-black/30"
-                  style={{ borderRadius: 16 }}
-                >
-                  <motion.div
-                    className="absolute inset-0"
-                    style={{ transformOrigin: "center center" }}
-                    animate={{
-                      x: hoveredAction === "dislike" ? -56 : hoveredAction === "like" ? 56 : 0,
-                      rotate: hoveredAction === "dislike" ? -1.5 : hoveredAction === "like" ? 1.5 : 0,
-                    }}
-                    transition={{
-                      duration: 0.75,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                  >
-                    <div
-                      className="relative h-full w-full"
-                      style={{ transformOrigin: "center center" }}
-                    >
-                      {/* Следующее фото сзади — появляется плавно из прозрачности после первого лайка */}
-                      {next && (
-                        <div
-                          className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden rounded-2xl"
-                          style={{ borderRadius: 16 }}
-                          aria-hidden
-                        >
-                          <motion.div
-                            className="h-full w-full rounded-2xl"
-                            initial={{ scale: 0.94, opacity: 0 }}
-                            animate={{ scale: 0.94, opacity: showNextPreview ? 0.6 : 0 }}
-                            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-                            style={{ borderRadius: 16 }}
-                          >
-                            <PhotoCard refItem={next} />
-                          </motion.div>
-                        </div>
-                      )}
-                      <AnimatePresence mode="wait" custom={lastAction}>
-                    {current ? (
-                      <motion.div
-                        key={current.id}
-                        custom={lastAction}
-                        className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-2xl"
-                        style={{ borderRadius: 16 }}
-                        initial={{ opacity: 0.65, scale: 0.94 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={((dir: "like" | "dislike" | null) => ({
-                          x: dir === "like" ? 520 : dir === "dislike" ? -520 : 0,
-                          y: -140,
-                          rotate: dir === "like" ? 18 : -18,
-                          opacity: 0,
-                          transition: { duration: 0.75, ease: [0.32, 0.72, 0, 1] },
-                        })) as any}
-                        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      >
-                        <PhotoCard refItem={current} />
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="done"
-                        className="flex h-full w-full flex-col items-center justify-center p-8 text-center"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      >
-                        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
-                          <Heart className="h-7 w-7 text-white/80" />
-                        </div>
-                        <div className="text-lg font-semibold text-white">
-                          All done
-                        </div>
-                        <div className="mt-2 text-sm text-white/60">
-                          You liked {likedList.length} out of {refs.length}{" "}
-                          references.
-                        </div>
-                      </motion.div>
-                    )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-
-              {/* Красный градиент слева при наведении на Dislike — за фото */}
-              <motion.div
-                className="pointer-events-none fixed left-0 top-0 bottom-0 z-0 w-[280px]"
-                style={{
-                  background: "linear-gradient(to right, rgba(239, 68, 68, 0.35), transparent)",
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: hoveredAction === "dislike" ? 1 : 0 }}
-                transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
-              />
-              {/* Зелёный градиент справа при наведении на Like — за фото */}
-              <motion.div
-                className="pointer-events-none fixed right-0 top-0 bottom-0 z-0 w-[280px]"
-                style={{
-                  background: "linear-gradient(to left, rgba(34, 197, 94, 0.35), transparent)",
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: hoveredAction === "like" ? 1 : 0 }}
-                transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
-              />
-
-              {current && (
-                <>
-                  <button
-                    type="button"
-                    className="absolute left-0 top-0 z-10 h-full cursor-pointer"
-                    style={{ touchAction: "manipulation", width: "var(--zone-width)" }}
-                    onClick={() => commit("like")}
-                    aria-label="Like"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-0 top-0 z-10 h-full cursor-pointer"
-                    style={{ touchAction: "manipulation", width: "var(--zone-width)" }}
-                    onClick={() => commit("dislike")}
-                    aria-label="Dislike"
-                  />
-                </>
-              )}
-
-              <div
-                className="absolute left-0 right-0 z-20 flex items-center justify-between px-4"
-                style={{ top: "50%", transform: "translateY(-50%)" }}
-              >
-                <CircleAction
-                  icon={<IconDislike active={!!current || pressedButton === "dislike"} />}
-                  onClick={() => commit("dislike")}
-                  disabled={!current}
-                  onMouseEnter={() => setHoveredAction("dislike")}
-                  onMouseLeave={() => setHoveredAction(null)}
-                  pressed={pressedButton === "dislike"}
-                  variant="dislike"
-                />
-                <CircleAction
-                  icon={
-                    <Heart
-                      size={iconSize}
-                      strokeWidth={iconStrokeWidth}
-                      className={`shrink-0 ${current || pressedButton === "like" ? "text-white" : "text-white opacity-30"}`}
-                    />
-                  }
-                  onClick={() => commit("like")}
-                  disabled={!current}
-                  onMouseEnter={() => setHoveredAction("like")}
-                  onMouseLeave={() => setHoveredAction(null)}
-                  pressed={pressedButton === "like"}
-                  variant="like"
-                />
-              </div>
-            </div>
+            </footer>
+            */}
           </motion.div>
         )}
       </AnimatePresence>

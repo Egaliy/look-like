@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Copy, Trash2, X, Upload, ChevronLeft, ChevronRight, Download, BarChart3, Settings } from "lucide-react";
+import { Plus, Copy, Trash2, X, Upload, ChevronLeft, ChevronRight, Download, BarChart3, Settings, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ImageAsset {
@@ -45,6 +45,15 @@ interface Stats {
   likes: number;
   dislikes: number;
   uniqueClients: number;
+  users?: Array<{
+    clientId: string;
+    userName: string | null;
+    totalRatings: number;
+    likes: number;
+    dislikes: number;
+    firstRating: string | null;
+    lastRating: string | null;
+  }>;
   imagesByLikes: { zero: number; one: number; twoPlus: number };
   imagesByLikesList?: {
     zero: StatsImage[];
@@ -80,6 +89,7 @@ export default function ReviewSetPage() {
   const [gallery, setGallery] = useState<{ images: StatsImage[]; index: number } | null>(null);
   const [savingLimit, setSavingLimit] = useState(false);
   const [savingIcon, setSavingIcon] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
   const linkCreatedRef = useRef(false);
@@ -427,14 +437,24 @@ export default function ReviewSetPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      title={linkCopied ? "Скопировано!" : "Скопировать ссылку"}
                       onClick={() => {
                         const url = typeof window !== "undefined" ? `${window.location.origin}/r/${reviewSet.links[0].token}` : `/r/${reviewSet.links[0].token}`;
                         navigator.clipboard.writeText(url);
-                        alert("Link copied!");
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2000);
                       }}
-                      className="h-6 w-6 p-0 text-white/60 hover:text-white hover:bg-white/10"
+                      className={`h-6 w-6 p-0 transition-colors ${
+                        linkCopied
+                          ? "text-green-400 hover:text-green-300 hover:bg-green-400/10"
+                          : "text-white/60 hover:text-white hover:bg-white/10"
+                      }`}
                     >
-                      <Copy className="h-3 w-3" />
+                      {linkCopied ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -479,7 +499,7 @@ export default function ReviewSetPage() {
             <>
           {/* Лимит фото на оценку */}
           <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-lg font-semibold text-white">Rating limit</h2>
+            <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>Rating limit</h2>
             <p className="mb-4 text-sm text-white/60">
               How many photos to show per session. If there are more in the folder, that many random ones will be chosen.
             </p>
@@ -663,7 +683,7 @@ export default function ReviewSetPage() {
         <>
         {/* 1. Статистика */}
             <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-              <h2 className="mb-4 text-xl font-semibold text-white">Statistics</h2>
+              <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>Statistics</h2>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                   <div className="text-xs text-white/50">Completed</div>
@@ -682,6 +702,34 @@ export default function ReviewSetPage() {
                   <div className="mt-1 text-2xl font-bold text-white">{stats.totalRatings}</div>
                 </div>
               </div>
+              {/* Список пользователей */}
+              {stats.users && stats.users.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="mb-3 text-sm font-medium text-white/80">Users</h3>
+                  <div className="space-y-2">
+                    {stats.users.map((user) => (
+                      <div
+                        key={user.clientId}
+                        className="rounded-lg border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-white">
+                              {user.userName || `User ${user.clientId.slice(0, 8)}`}
+                            </div>
+                            <div className="mt-1 text-xs text-white/50">
+                              {user.likes} likes · {user.dislikes} dislikes · {user.totalRatings} total
+                            </div>
+                          </div>
+                          <div className="text-xs text-white/40">
+                            {user.firstRating && new Date(user.firstRating).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Оценки по фото: фото по группам; при 1 проходе — отлайканные, при 2+ — 2+ лайка; остальное в свёртках */}
               <div className="mt-4">
                 <h3 className="mb-3 text-sm font-medium text-white/80">Ratings by photo</h3>

@@ -7,7 +7,7 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { imageId, decision, orderIndex, sessionId, clientId } = body;
+    const { imageId, decision, orderIndex, sessionId, clientId, userName } = body;
 
     if (!imageId || !decision || typeof orderIndex !== "number" || !clientId) {
       return NextResponse.json(
@@ -44,6 +44,7 @@ export async function POST(
         decision,
         orderIndex,
         sessionId: sessionId || null,
+        userName: userName || null,
         timestamp: new Date(),
       },
       create: {
@@ -51,6 +52,7 @@ export async function POST(
         imageId,
         decision,
         clientId,
+        userName: userName || null,
         orderIndex,
         sessionId: sessionId || null,
       },

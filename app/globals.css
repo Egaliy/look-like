@@ -54,3 +54,48 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Figma стили для форм и заголовков */
+h1, h2, h3, h4, h5, h6 {
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 34px;
+  color: white;
+}
+
+.form-input {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  padding: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 19px;
+  line-height: 23px;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.form-submit-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: white;
+  color: black;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.form-submit-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+}

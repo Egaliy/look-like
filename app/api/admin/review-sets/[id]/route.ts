@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureReviewSetColumns } from "@/lib/ensure-review-set-columns";
 
 /** Cuid обычно начинается с "c" и имеет фиксированную длину. Иначе считаем, что передан slug. */
 function isCuid(value: string): boolean {
@@ -64,6 +65,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);
     if (!reviewSet) {
       return NextResponse.json(
@@ -78,7 +80,6 @@ export async function GET(
       slug: reviewSet.slug ?? null,
       description: reviewSet.description,
       icon: null as string | null,
-      isDefault: false,
       maxImagesToRate: reviewSet.maxImagesToRate ?? null,
       createdAt: reviewSet.createdAt.toISOString(),
       updatedAt: reviewSet.updatedAt.toISOString(),
@@ -118,6 +119,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);
     if (!reviewSet) {
       return NextResponse.json(
@@ -155,22 +157,11 @@ export async function PATCH(
       slug: updated.slug ?? null,
       description: updated.description ?? null,
       icon: null as string | null,
-      isDefault: false,
       maxImagesToRate: updated.maxImagesToRate ?? null,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     });
   } catch (error: any) {
-    const msg = error?.message ?? "";
-    if (msg.includes("isDefault") || msg.includes("Unknown argument") || msg.includes("icon")) {
-      return NextResponse.json(
-        {
-          error:
-            "Поле isDefault ещё не в базе. Выполните миграцию: в корне проекта запустите `npx prisma db push` или выполните SQL из prisma/migrations/README-migrations.md, затем `npx prisma generate` и перезапустите сервер.",
-        },
-        { status: 500 }
-      );
-    }
     console.error("Error updating review set:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
@@ -184,6 +175,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);
     if (!reviewSet) {
       return NextResponse.json(
@@ -206,9 +198,16 @@ export async function DELETE(
       }
     }
 
-    await prisma.reviewSet.delete({
-      where: { id: reviewSet.id },
-    });
+    const id = reviewSet.id;
+    try {
+      await prisma.reviewSet.delete({
+        where: { id },
+      });
+    } catch (deleteErr: any) {
+      if (String(deleteErr?.message ?? "").includes("isDefault") && String(deleteErr?.message ?? "").includes("does not exist")) {
+        await prisma.$executeRawUnsafe(`DELETE FROM review_sets WHERE id = $1`, id);
+      } else throw deleteErr;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

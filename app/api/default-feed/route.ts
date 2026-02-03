@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureReviewSetColumns } from "@/lib/ensure-review-set-columns";
 
 const DEFAULT_MAX_IMAGES = 40;
 
@@ -12,58 +13,64 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
+type DefaultFeedRow = {
+  id: string;
+  title: string;
+  maxImagesToRate?: number | null;
+  images: { id: string; url: string | null; filePath: string | null; title: string | null; order: number }[];
+  links: { token: string; expiresAt: Date | null }[];
+};
+
+const defaultFeedSelect = {
+  id: true,
+  title: true,
+  maxImagesToRate: true,
+  images: {
+    orderBy: { order: "asc" as const },
+    select: { id: true, url: true, filePath: true, title: true, order: true },
+  },
+  links: {
+    take: 1,
+    orderBy: { createdAt: "desc" as const },
+    select: { token: true, expiresAt: true },
+  },
+} as const;
+
 /**
- * Возвращает данные ленты стандартного проекта (последняя папка по order).
- * То же самое, что GET /api/r/[token], но для стандартного проекта.
- * Данные приходят отдельно — главная страница рендерит их без редиректа.
+ * Возвращает данные ленты последнего проекта по order (или по createdAt).
+ * Главная страница рендерит их без редиректа.
  */
 export async function GET() {
   try {
-    let reviewSetWithLink: {
-      id: string;
-      title: string;
-      maxImagesToRate?: number | null;
-      images: { id: string; url: string | null; filePath: string | null; title: string | null; order: number }[];
-      links: { token: string; expiresAt: Date | null }[];
-    } | null = null;
+    await ensureReviewSetColumns();
+    let reviewSetWithLink: DefaultFeedRow | null = null;
 
     try {
       reviewSetWithLink = await prisma.reviewSet.findFirst({
         orderBy: [{ order: "desc" }, { createdAt: "desc" }],
-        select: {
+        select: defaultFeedSelect,
+      }) as DefaultFeedRow | null;
+    } catch (orderErr: any) {
+      const msg = String(orderErr?.message ?? "");
+      if (msg.includes("order") || msg.includes("maxImagesToRate") || orderErr?.code === "P2009") {
+        const selectNoOptional = {
           id: true,
           title: true,
-          maxImagesToRate: true,
           images: {
-            orderBy: { order: "asc" },
+            orderBy: { order: "asc" as const },
             select: { id: true, url: true, filePath: true, title: true, order: true },
           },
           links: {
             take: 1,
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "desc" as const },
             select: { token: true, expiresAt: true },
           },
-        },
-      }) as typeof reviewSetWithLink;
-    } catch (orderErr: any) {
-      if (orderErr?.message?.includes("order") || orderErr?.code === "P2009") {
+        } as const;
         reviewSetWithLink = await prisma.reviewSet.findFirst({
           orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            maxImagesToRate: true,
-            images: {
-              orderBy: { order: "asc" },
-              select: { id: true, url: true, filePath: true, title: true, order: true },
-            },
-            links: {
-              take: 1,
-              orderBy: { createdAt: "desc" },
-              select: { token: true, expiresAt: true },
-            },
-          },
-        }) as typeof reviewSetWithLink;
+          select: selectNoOptional,
+        }) as DefaultFeedRow | null;
+        if (reviewSetWithLink) (reviewSetWithLink as DefaultFeedRow).maxImagesToRate = null;
       } else throw orderErr;
     }
 

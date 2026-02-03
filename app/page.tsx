@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FeedContent } from "@/components/FeedContent";
+import { Loader } from "@/components/Loader";
 
 /**
  * Главная страница: контент стандартного (нижнего) проекта.
@@ -14,27 +15,36 @@ export default function Home() {
   const [token, setToken] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  const loadDefaultFeed = () => {
+  const loadDefaultFeed = async () => {
+    const startTime = Date.now();
     setStatus("loading");
     setErrorMessage("");
-    fetch("/api/default-feed")
-      .then((res) => {
-        if (!res.ok) {
-          const err =
-            res.status === 404
-              ? "Нет стандартной папки"
-              : res.status === 500
-                ? "Ошибка сервера. Попробуйте ещё раз."
-                : "Не удалось загрузить проект";
-          setErrorMessage(err);
-          setStatus("error");
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (!data) return;
-        const list = Array.isArray(data.images) ? data.images : [];
+    
+    try {
+      // Запускаем загрузку и таймер параллельно
+      const fetchPromise = fetch("/api/default-feed");
+      const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      
+      // Ждем минимум 1 секунду, но не больше времени загрузки
+      await Promise.all([fetchPromise, timeoutPromise]);
+      
+      const res = await fetchPromise;
+
+      if (!res.ok) {
+        const err =
+          res.status === 404
+            ? "Нет стандартной папки"
+            : res.status === 500
+              ? "Ошибка сервера. Попробуйте ещё раз."
+              : "Не удалось загрузить проект";
+        setErrorMessage(err);
+        setStatus("error");
+        return;
+      }
+
+      const data = await res.json();
+      const list = Array.isArray(data.images) ? data.images : [];
+      if (list.length > 0 && data.token) {
         setRefs(
           list.map((img: any, i: number) => ({
             id: img.id,
@@ -44,15 +54,32 @@ export default function Home() {
           }))
         );
         setToken(data.token || "");
-        setStatus(list.length > 0 && data.token ? "ready" : "error");
-        if (list.length === 0 || !data.token) {
-          setErrorMessage("Нет стандартной папки или нет фото");
-        }
-      })
-      .catch(() => {
+        setStatus("ready");
+        return;
+      }
+      // Нет стандартной папки или нет фото — подставляем тестовые из imgs
+      const testRes = await fetch("/api/test-images");
+      const testData = testRes.ok ? await testRes.json() : null;
+      const testList = Array.isArray(testData?.images) ? testData.images : [];
+      if (testList.length > 0) {
+        setRefs(
+          testList.map((img: any) => ({
+            id: img.id,
+            title: img.title || "Reference",
+            subtitle: "Swipe to rate",
+            url: img.url || "",
+          }))
+        );
+        setToken("");
+        setStatus("ready");
+      } else {
+        setErrorMessage("Нет стандартной папки или нет фото");
         setStatus("error");
-        setErrorMessage("Ошибка сети. Проверьте подключение и попробуйте снова.");
-      });
+      }
+    } catch {
+      setStatus("error");
+      setErrorMessage("Ошибка сети. Проверьте подключение и попробуйте снова.");
+    }
   };
 
   useEffect(() => {
@@ -60,11 +87,7 @@ export default function Home() {
   }, []);
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div className="text-white/60">Загрузка…</div>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (status === "error") {
@@ -73,7 +96,7 @@ export default function Home() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center max-w-sm">
           <p className="mb-2 text-lg font-semibold text-white">{errorMessage}</p>
           <p className="mb-4 text-sm text-white/60">
-            Добавьте проект в админке и поставьте его последним в списке — он станет стандартным.
+            Добавьте проект в админке и поставьте его последним в списке — он станет стандартным. Либо добавьте папку imgs с тестовыми фото.
           </p>
           <div className="flex flex-col gap-2">
             <button

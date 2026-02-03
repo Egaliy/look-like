@@ -16,7 +16,7 @@ export async function GET(
             filePath: true,
             url: true,
             title: true,
-            ratings: { select: { id: true, decision: true, clientId: true } },
+            ratings: { select: { id: true, decision: true, clientId: true, userName: true, timestamp: true } },
           },
         },
         links: {
@@ -58,6 +58,51 @@ export async function GET(
       reviewSet.images.flatMap(img => img.ratings.map(r => r.clientId))
     ).size;
 
+    // Группируем пользователей по clientId с их именами и оценками
+    const usersMap = new Map<string, {
+      clientId: string;
+      userName: string | null;
+      totalRatings: number;
+      likes: number;
+      dislikes: number;
+      firstRating: Date | null;
+      lastRating: Date | null;
+    }>();
+
+    reviewSet.images.forEach(img => {
+      img.ratings.forEach(r => {
+        if (!usersMap.has(r.clientId)) {
+          usersMap.set(r.clientId, {
+            clientId: r.clientId,
+            userName: r.userName || null,
+            totalRatings: 0,
+            likes: 0,
+            dislikes: 0,
+            firstRating: null,
+            lastRating: null,
+          });
+        }
+        const user = usersMap.get(r.clientId)!;
+        user.totalRatings++;
+        if (r.decision === 'like') user.likes++;
+        else user.dislikes++;
+        if (!user.firstRating || r.timestamp < user.firstRating) user.firstRating = r.timestamp;
+        if (!user.lastRating || r.timestamp > user.lastRating) user.lastRating = r.timestamp;
+        // Обновляем имя, если оно есть и еще не установлено
+        if (r.userName && !user.userName) user.userName = r.userName;
+      });
+    });
+
+    const users = Array.from(usersMap.values()).map(u => ({
+      clientId: u.clientId,
+      userName: u.userName,
+      totalRatings: u.totalRatings,
+      likes: u.likes,
+      dislikes: u.dislikes,
+      firstRating: u.firstRating?.toISOString() || null,
+      lastRating: u.lastRating?.toISOString() || null,
+    }));
+
     return NextResponse.json({
       totalImages: reviewSet.images.length,
       totalLinks: reviewSet.links.length,
@@ -65,6 +110,7 @@ export async function GET(
       likes,
       dislikes,
       uniqueClients,
+      users,
       imagesByLikes: {
         zero: bucketZero.length,
         one: bucketOne.length,

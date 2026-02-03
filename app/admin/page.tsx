@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Upload, Server, FolderOpen, X, Trash2, Activity, GripVertical, Copy, Settings, BarChart3 } from "lucide-react";
+import { Upload, Server, FolderOpen, X, Trash2, Activity, GripVertical, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
@@ -11,7 +11,6 @@ interface ProjectItem {
   title: string;
   description: string | null;
   icon?: string | null;
-  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
   _count: { images: number; links: number; ratings: number };
@@ -66,18 +65,57 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingPreviews, setPendingPreviews] = useState<Record<number, string>>({});
+  const [previewsLoaded, setPreviewsLoaded] = useState<Record<number, boolean>>({});
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [createButtonText, setCreateButtonText] = useState<string>("Create");
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ project: ProjectItem; seconds: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [origin, setOrigin] = useState("https://app.ubernatural.io");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
+
+  // Счётчик удаления: по истечении 5 сек вызываем API
+  useEffect(() => {
+    if (!pendingDelete) return;
+    if (pendingDelete.seconds <= 0) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      const { project } = pendingDelete;
+      setPendingDelete(null);
+      setDeletingProject(project.id);
+      fetch(`/api/admin/review-sets/${project.slug ?? project.id}`, { method: "DELETE" })
+        .then((res) => {
+          if (res.ok) loadProjects();
+          else res.json().then((body) => alert(body?.error || "Error"));
+        })
+        .finally(() => setDeletingProject(null));
+      return;
+    }
+    countdownIntervalRef.current = setInterval(() => {
+      setPendingDelete((prev) => {
+        if (!prev) return null;
+        const next = prev.seconds - 1;
+        if (next < 0) return null;
+        return { ...prev, seconds: next };
+      });
+    }, 1000);
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [pendingDelete]);
 
   useEffect(() => {
     const urls: Record<number, string> = {};
@@ -88,15 +126,16 @@ export default function AdminPage() {
       Object.values(prev).forEach(URL.revokeObjectURL);
       return urls;
     });
+    setPreviewsLoaded({});
     return () => Object.values(urls).forEach(URL.revokeObjectURL);
   }, [pendingFiles]);
 
-  // Функция для создания slug
+  // Функция для создания slug (должна совпадать с бэкендом)
   function createSlug(text: string): string {
     return text
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9\\-_]/g, '-')
+      .replace(/[^a-z0-9_-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
   }
@@ -255,16 +294,42 @@ export default function AdminPage() {
 
   async function createProject() {
     if (!titleValidation.isValid) return;
+    const titleToUse = title.trim();
+    const slugToUse = createSlug(titleToUse);
+    const optimisticId = `creating-${Date.now()}`;
+    const now = new Date().toISOString();
+    const filesToUpload = [...pendingFiles];
+
+    // Визуально сразу добавляем проект в список и сбрасываем форму
+    const optimisticProject: ProjectItem = {
+      id: optimisticId,
+      slug: slugToUse,
+      title: titleToUse,
+      description: null,
+      icon: null,
+      createdAt: now,
+      updatedAt: now,
+      _count: { images: 0, links: 0, ratings: 0 },
+      firstLink: null,
+    };
+    setProjects((prev) => [optimisticProject, ...prev]);
+    setTitle("");
+    setPendingFiles([]);
+    setPreviewsLoaded({});
+    setPendingPreviews({});
+    setTitleValidation({ isValid: false, message: "", checking: false });
     setCreating(true);
     setCreateButtonText("Creating...");
+
     try {
       const res = await fetch("/api/admin/review-sets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title: titleToUse }),
       });
       const data = await res.json();
       if (!res.ok) {
+        setProjects((prev) => prev.filter((p) => p.id !== optimisticId));
         setTitleValidation({ isValid: false, message: data.error || "Error", checking: false });
         setCreateButtonText("Create");
         setCreating(false);
@@ -273,8 +338,8 @@ export default function AdminPage() {
       const projectId = data.id;
 
       // Загружаем фото — с прогрессом по файлам и по фото в архиве
-      if (pendingFiles.length > 0) {
-        const totalFiles = pendingFiles.length;
+      if (filesToUpload.length > 0) {
+        const totalFiles = filesToUpload.length;
         setUploadProgress({
           total: totalFiles,
           uploaded: 0,
@@ -285,7 +350,7 @@ export default function AdminPage() {
         });
         let uploaded = 0;
         let fileIndex = 0;
-        for (const file of pendingFiles) {
+        for (const file of filesToUpload) {
           fileIndex++;
           setUploadProgress((p) =>
             p ? { ...p, currentFile: fileIndex, zipTotal: undefined, zipDone: undefined } : p
@@ -333,11 +398,9 @@ export default function AdminPage() {
 
       setCreateButtonText("Link copied");
       loadProjects();
-      setTitle("");
-      setPendingFiles([]);
-      setTitleValidation({ isValid: false, message: "", checking: false });
       setTimeout(() => setCreateButtonText("Create"), 2500);
     } catch (e: any) {
+      setProjects((prev) => prev.filter((p) => p.id !== optimisticId));
       setCreateButtonText("Error");
       setTimeout(() => setCreateButtonText("Create"), 2000);
     } finally {
@@ -361,7 +424,7 @@ export default function AdminPage() {
       <div className="relative mx-auto max-w-4xl p-8">
         {/* 1. Создание проекта — сверху, без кнопки + */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-4 text-xl font-semibold text-white">Create project</h2>
+          <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>Create project</h2>
           <div className="mb-4">
             <label className="mb-2 block text-sm font-medium text-white/80">URL проекта</label>
             <div
@@ -407,24 +470,41 @@ export default function AdminPage() {
             </Button>
             {pendingFiles.length > 0 && (
               <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
-                {pendingFiles.map((f, i) => (
-                  <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-white/5">
-                    {pendingPreviews[i] ? (
-                      <img src={pendingPreviews[i]} alt="" className="h-full w-full object-cover rounded-lg" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center p-2 text-center text-xs text-white/60">
-                        {f.name}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removePendingFile(i)}
-                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white/80 hover:bg-red-500 hover:text-white"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                {pendingFiles.map((f, i) => {
+                  const isImage = f.type.startsWith("image/");
+                  const hasPreview = !!pendingPreviews[i];
+                  const loaded = previewsLoaded[i];
+                  return (
+                    <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                      {hasPreview ? (
+                        <>
+                          <img
+                            src={pendingPreviews[i]}
+                            alt=""
+                            className="h-full w-full object-cover rounded-lg"
+                            onLoad={() => setPreviewsLoaded((prev) => ({ ...prev, [i]: true }))}
+                          />
+                          {isImage && !loaded && (
+                            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60">
+                              <span className="text-xs text-white/80">Загрузка…</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex h-full items-center justify-center p-2 text-center text-xs text-white/60">
+                          {f.name}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removePendingFile(i)}
+                        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white/80 hover:bg-red-500 hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -481,7 +561,12 @@ export default function AdminPage() {
           )}
           <Button
             onClick={createProject}
-            disabled={creating || !titleValidation.isValid}
+            disabled={
+              creating ||
+              !titleValidation.isValid ||
+              (pendingFiles.length > 0 &&
+                pendingFiles.some((f, i) => f.type.startsWith("image/") && !previewsLoaded[i]))
+            }
             className="bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
           >
             {createButtonText}
@@ -490,7 +575,7 @@ export default function AdminPage() {
 
         {/* 2. Все проекты */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
+          <h2 className="mb-4 flex items-center gap-2 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
             <FolderOpen className="h-5 w-5" />
             Projects
           </h2>
@@ -519,15 +604,17 @@ export default function AdminPage() {
                     const fromIndex = projects.findIndex((x) => x.id === draggedId);
                     const toIndex = projects.findIndex((x) => x.id === p.id);
                     if (fromIndex === -1 || toIndex === -1) return;
+                    if (String(draggedId).startsWith("creating-") || String(p.id).startsWith("creating-")) return;
                     const next = [...projects];
                     const [removed] = next.splice(fromIndex, 1);
                     next.splice(toIndex, 0, removed);
                     setProjects(next);
                     setReordering(true);
+                    const realIds = next.filter((x) => !String(x.id).startsWith("creating-")).map((x) => x.id);
                     fetch("/api/admin/review-sets/reorder", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ orderedIds: next.map((x) => x.id) }),
+                      body: JSON.stringify({ orderedIds: realIds }),
                     })
                       .then((res) => {
                         if (!res.ok) loadProjects();
@@ -542,8 +629,9 @@ export default function AdminPage() {
                     }`}
                   >
                     <div
-                      draggable
+                      draggable={!String(p.id).startsWith("creating-")}
                       onDragStart={(e) => {
+                        if (String(p.id).startsWith("creating-")) return;
                         e.dataTransfer.setData("text/plain", p.id);
                         e.dataTransfer.effectAllowed = "move";
                       }}
@@ -552,75 +640,75 @@ export default function AdminPage() {
                     >
                       <GripVertical className="h-5 w-5" />
                     </div>
+                    {String(p.id).startsWith("creating-") ? (
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{p.title}</span>
+                        </div>
+                        <div className="text-xs text-white/50 mt-0.5">
+                          {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · Создаётся…
+                        </div>
+                      </div>
+                    ) : (
                     <Link href={`/admin/review-sets/${p.slug ?? p.id}`} className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {p.icon && (
                           <span className="text-xl leading-none" role="img" aria-hidden>{p.icon}</span>
                         )}
                         <span className="font-medium">{p.title}</span>
-                        {p.isDefault && (
-                          <span className="rounded bg-amber-500/20 text-amber-300 text-xs px-1.5 py-0.5 font-medium">
-                            Standard folder
-                          </span>
-                        )}
                       </div>
                       <div className="text-xs text-white/50 mt-0.5">
                         {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · {new Date(p.createdAt).toLocaleDateString()}
                       </div>
                     </Link>
-                    {p.firstLink && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Скопировать ссылку"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const url = typeof window !== "undefined" ? `${window.location.origin}/r/${p.firstLink!.token}` : "";
-                          if (url) navigator.clipboard.writeText(url);
-                        }}
-                        className="h-8 w-8 p-0 text-white/50 hover:text-white hover:bg-white/10"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
                     )}
-                    <Link
-                      href={`/admin/review-sets/${p.slug ?? p.id}?tab=settings`}
-                      title="Настройки"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Link>
-                    <Link
-                      href={`/admin/review-sets/${p.slug ?? p.id}?tab=stats`}
-                      title="Статистика"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!confirm(`Delete project "${p.title}"?`)) return;
-                        setDeletingProject(p.id);
-                        try {
-                          const res = await fetch(`/api/admin/review-sets/${p.slug ?? p.id}`, { method: "DELETE" });
-                          if (res.ok) loadProjects();
-                          else alert((await res.json()).error || "Error");
-                        } finally {
-                          setDeletingProject(null);
-                        }
-                      }}
-                      disabled={deletingProject === p.id}
-                      className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!String(p.id).startsWith("creating-") && (
+                      <>
+                        {p.firstLink && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={copiedLinkId === p.id ? "Скопировано!" : "Скопировать ссылку"}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const url = typeof window !== "undefined" ? `${window.location.origin}/r/${p.firstLink!.token}` : "";
+                              if (url) {
+                                navigator.clipboard.writeText(url);
+                                setCopiedLinkId(p.id);
+                                setTimeout(() => setCopiedLinkId(null), 2000);
+                              }
+                            }}
+                            className={`h-8 w-8 p-0 transition-colors ${
+                              copiedLinkId === p.id
+                                ? "text-green-400 hover:text-green-300 hover:bg-green-400/10"
+                                : "text-white/50 hover:text-white hover:bg-white/10"
+                            }`}
+                          >
+                            {copiedLinkId === p.id ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (pendingDelete?.project.id === p.id) return;
+                            setProjects((prev) => prev.filter((x) => x.id !== p.id));
+                            setPendingDelete({ project: p, seconds: 5 });
+                          }}
+                          disabled={deletingProject === p.id}
+                          className="text-red-400/60 hover:text-red-400 hover:bg-red-400/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
@@ -633,7 +721,7 @@ export default function AdminPage() {
 
         {/* 3. Состояние сервиса */}
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
+          <h2 className="mb-4 flex items-center gap-2 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
             <Activity className="h-5 w-5" />
             Service check
           </h2>
@@ -669,8 +757,32 @@ export default function AdminPage() {
           )}
         </div>
 
+        {/* Нижняя панель: отмена удаления и счётчик */}
+        {pendingDelete && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-white/10 bg-black/95 px-4 py-3 backdrop-blur-sm">
+            <span className="text-sm text-white">
+              Вы точно хотите удалить «{pendingDelete.project.title}»? <span className="font-mono font-semibold tabular-nums">{pendingDelete.seconds}</span> сек
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current);
+                  countdownIntervalRef.current = null;
+                }
+                setProjects((prev) => [...prev, pendingDelete.project].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+                setPendingDelete(null);
+              }}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              Отмена
+            </Button>
+          </div>
+        )}
+
         <div className="rounded-lg border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-white">
+          <h2 className="mb-4 flex items-center gap-2 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>
             <Server className="h-5 w-5" />
             Server
           </h2>

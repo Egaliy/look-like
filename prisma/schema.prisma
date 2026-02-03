@@ -25,7 +25,6 @@ model ReviewSet {
   slug             String   @unique // URL-friendly версия названия (английские буквы, цифры, дефисы)
   description      String?
   icon             String?  // Эмодзи как иконка проекта (как в Notion)
-  isDefault        Boolean  @default(false) // Стандартная папка: если ссылка «без названия», показываем фото отсюда
   maxImagesToRate   Int?     // null = оценить все; число = показывать столько случайных
   order            Int      @default(0) // Порядок в списке (перетаскивание)
   createdAt        DateTime @default(now())
@@ -80,6 +79,7 @@ model Rating {
   imageId     String
   decision    String     // "like" | "dislike"
   clientId    String     // ID клиента/заказчика (для различения нескольких заказчиков)
+  userName    String?    // Имя пользователя
   timestamp   DateTime   @default(now())
   orderIndex  Int        // Position in session
   sessionId   String?    // Optional: for grouping events
