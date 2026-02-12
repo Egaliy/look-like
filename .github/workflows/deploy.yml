@@ -1,0 +1,67 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server (background build)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            PROJ="${{ secrets.VPS_PROJECT_PATH || '/var/www/like-that' }}"
+            mkdir -p "$(dirname "$PROJ")"
+            if [ ! -d "$PROJ/.git" ]; then git clone https://github.com/Egaliy/look-like.git "$PROJ"; fi
+            cd "$PROJ"
+            if [ ! -f .env ]; then
+              {
+                [ -n "${{ secrets.DATABASE_URL }}" ] && echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+                echo "NEXTAUTH_URL=http://${{ secrets.VPS_HOST }}"
+                echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}"
+              } > .env
+              echo "Создан .env на сервере"
+            fi
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd -e .env -e .env.local -e .env.production
+            nohup bash -c '
+              npm ci --production=false
+              npx prisma generate
+              npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss 2>/dev/null || true
+              npm run build
+              pm2 delete like-that 2>/dev/null; pm2 start npm --name like-that -- start
+              pm2 save
+              echo DONE > /tmp/deploy-like-that.status
+            ' > /tmp/deploy-like-that.log 2>&1 &
+            echo "Деплой запущен в фоне. Лог: /tmp/deploy-like-that.log"
+
+      - name: Wait and verify
+        run: sleep 120
+
+      - name: Check deploy status on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30s
+          command_timeout: 1m
+          script: |
+            PROJ="${{ secrets.VPS_PROJECT_PATH || '/var/www/like-that' }}"
+            if [ -f /tmp/deploy-like-that.status ]; then echo "✅ Deploy completed"; tail -20 /tmp/deploy-like-that.log; else echo "⏳ Still building..."; tail -30 /tmp/deploy-like-that.log; fi
+            curl -sf -o /dev/null http://127.0.0.1:3000/admin && echo "App responds on :3000" || echo "App not ready yet"
+            [ -f "$PROJ/scripts/nginx-like-that.conf" ] && sudo cp "$PROJ/scripts/nginx-like-that.conf" /etc/nginx/sites-available/like-that && sudo ln -sf /etc/nginx/sites-available/like-that /etc/nginx/sites-enabled/0-like-that 2>/dev/null; sudo nginx -t 2>/dev/null && sudo systemctl reload nginx 2>/dev/null && echo "Nginx обновлён для доступа по IP" || true
