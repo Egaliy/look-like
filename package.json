@@ -2,9 +2,11 @@
   "name": "like-that",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": ">=18" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:server": "NODE_OPTIONS=--max-old-space-size=512 next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",

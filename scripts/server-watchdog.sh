@@ -4,7 +4,7 @@
 
 set -e
 
-APP_URL="${APP_URL:-http://127.0.0.1:3000}"
+APP_URL="${APP_URL:-http://127.0.0.1:3002}"
 HEALTH_PATH="${HEALTH_PATH:-/api/admin/health}"
 STATE_FILE="${STATE_FILE:-/tmp/like-that-watchdog.state}"
 FAIL_THRESHOLD=2          # сколько проверок подряд "down" перед действием

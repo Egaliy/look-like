@@ -14,7 +14,7 @@ echo ""
 # 1. Запуск приложения в PM2 (если ещё не запущено)
 if ! pm2 describe like-that >/dev/null 2>&1; then
   echo "1. Запуск приложения в PM2..."
-  pm2 start npm --name "like-that" -- start
+  PORT=3002 pm2 start npm --name "like-that" -- start
 else
   echo "1. Приложение уже в PM2."
   pm2 restart like-that 2>/dev/null || true
@@ -59,7 +59,7 @@ server {
     listen 80;
     server_name $VPS_DOMAIN;
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3002;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';

@@ -29,30 +29,31 @@ if [ ! -f .env ]; then
   echo "Создаю .env (заглушка). Потом замени DATABASE_URL на свой из Supabase."
   cat > .env << 'ENVFILE'
 DATABASE_URL="postgresql://user:password@localhost:5432/like_that?pgbouncer=true"
-NEXTAUTH_URL="http://130.49.149.162"
+NEXTAUTH_URL="http://130.49.149.162:3002"
 NEXTAUTH_SECRET="change-me-please"
 ENVFILE
 fi
 
-# 3. Сборка
+# 3. Сборка (лимит памяти 512MB — на серверах с 1GB RAM иначе падает)
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
 echo "Установка зависимостей..."
-npm ci --production=false
+npm ci --production=false 2>/dev/null || npm install --production=false
 echo "Prisma..."
 npx prisma generate
 npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss 2>/dev/null || true
 echo "Сборка Next.js..."
-npm run build
+npm run build:server 2>/dev/null || npm run build
 
 # 4. PM2
 echo "Запуск PM2..."
 pm2 delete like-that 2>/dev/null || true
-pm2 start npm --name like-that -- start
+PORT=3002 pm2 start npm --name like-that -- start
 pm2 save
 
 echo ""
-echo "=== Приложение запущено на порту 3000 ==="
+echo "=== Приложение запущено на http://130.49.149.162:3002 ==="
 echo "Добавь nginx и перезагрузи его:"
 echo "  sudo cp $VPS_PATH/scripts/nginx-like-that.conf /etc/nginx/sites-available/like-that"
 echo "  sudo ln -sf /etc/nginx/sites-available/like-that /etc/nginx/sites-enabled/0-like-that"
 echo "  sudo nginx -t && sudo systemctl reload nginx"
-echo "Потом открой: http://130.49.149.162"
+echo "Потом открой: http://130.49.149.162:3002"

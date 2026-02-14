@@ -73,14 +73,17 @@ run_remote "npx prisma generate"
 echo "🗄️ prisma db..."
 run_remote "npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss 2>/dev/null || true"
 
-echo "🏗️ npm run build (может занять 2–5 мин)..."
-run_remote "npm run build"
+echo "🏗️ npm run build (лимит памяти 512MB, может занять 2–5 мин)..."
+run_remote "export NODE_OPTIONS=--max-old-space-size=512 && (npm run build:server 2>/dev/null || npm run build)"
 
 echo "🔄 pm2..."
-run_remote "pm2 restart like-that 2>/dev/null || pm2 start npm --name like-that -- start"
+run_remote "pm2 restart like-that 2>/dev/null || PORT=3002 pm2 start npm --name like-that -- start"
 
 echo "✅ Готово"
 
 echo ""
 echo "🌐 Сайт: http://$VPS_HOST"
 echo "   Админка: http://$VPS_HOST/admin"
+echo ""
+echo "Если по IP ещё открывается другой сайт — на сервере включи nginx для like-that:"
+echo "  ssh $VPS_USER@$VPS_HOST 'sudo cp $VPS_PATH/scripts/nginx-like-that.conf /etc/nginx/sites-available/like-that && sudo ln -sf /etc/nginx/sites-available/like-that /etc/nginx/sites-enabled/0-like-that && sudo nginx -t && sudo systemctl reload nginx'"

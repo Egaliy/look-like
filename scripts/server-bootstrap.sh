@@ -10,9 +10,16 @@ cd "$PROJECT_DIR"
 
 echo "=== Bootstrap: $PROJECT_DIR ==="
 
+# .env: если нет — создаём из примера (подставь свой DATABASE_URL потом)
 if [[ ! -f .env ]]; then
-  echo "Создай .env с DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET и снова запусти этот скрипт."
-  exit 1
+  echo "Создаю .env из .env.example (потом замени DATABASE_URL на свой Supabase)."
+  cp .env.example .env 2>/dev/null || true
+  if [[ ! -f .env ]]; then
+    echo "DATABASE_URL=postgresql://localhost:5432/like_that?pgbouncer=true" > .env
+    echo "NEXTAUTH_URL=http://130.49.149.162:3002" >> .env
+    echo "NEXTAUTH_SECRET=change-me-$(date +%s)" >> .env
+  fi
+  sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=http://130.49.149.162:3002|' .env 2>/dev/null || true
 fi
 
 echo "Установка зависимостей..."
@@ -22,12 +29,13 @@ echo "Prisma..."
 npx prisma generate
 npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss 2>/dev/null || true
 
-echo "Сборка..."
-npm run build
+echo "Сборка (с лимитом памяти 512MB для серверов с 1GB RAM)..."
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
+npm run build:server 2>/dev/null || npm run build
 
 echo "PM2..."
 pm2 delete like-that 2>/dev/null || true
-pm2 start npm --name like-that -- start
+PORT=3002 pm2 start npm --name like-that -- start
 pm2 save
 
 echo "Автозапуск после перезагрузки..."
