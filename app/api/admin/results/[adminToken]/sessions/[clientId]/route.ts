@@ -7,6 +7,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { adminToken: string; clientId: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     // Находим ссылку по adminToken
     const reviewLink = await prisma.reviewLink.findUnique({
