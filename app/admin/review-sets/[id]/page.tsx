@@ -392,7 +392,7 @@ export default function ReviewSetPage() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3">
-                <label className="flex shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/5 w-12 h-12 text-2xl cursor-pointer hover:bg-white/10 transition-colors" title="Иконка проекта (эмодзи). На Mac: Ctrl+Cmd+Space">
+                <label className="flex shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/5 w-12 h-12 text-2xl cursor-pointer hover:bg-white/10 transition-colors" title="Project icon (emoji). On Mac: Ctrl+Cmd+Space">
                   <input
                     type="text"
                     inputMode="text"
@@ -416,7 +416,7 @@ export default function ReviewSetPage() {
                     }}
                     className="w-8 h-8 text-center bg-transparent border-0 outline-none text-2xl text-white placeholder:text-white/40"
                     placeholder="✨"
-                    title="Эмодзи (Mac: Ctrl+Cmd+Space)"
+                    title="Emoji (Mac: Ctrl+Cmd+Space)"
                   />
                 </label>
                 <h1 className="text-3xl font-bold text-white">{reviewSet.title}</h1>
@@ -437,7 +437,7 @@ export default function ReviewSetPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      title={linkCopied ? "Скопировано!" : "Скопировать ссылку"}
+                      title={linkCopied ? "Copied!" : "Copy link"}
                       onClick={() => {
                         const url = typeof window !== "undefined" ? `${window.location.origin}/r/${reviewSet.links[0].token}` : `/r/${reviewSet.links[0].token}`;
                         navigator.clipboard.writeText(url);
@@ -482,7 +482,7 @@ export default function ReviewSetPage() {
               }`}
             >
               <BarChart3 className="h-4 w-4" />
-              Статистика
+              Statistics
             </Link>
             <Link
               href={`/admin/review-sets/${params.id}?tab=settings`}
@@ -491,7 +491,7 @@ export default function ReviewSetPage() {
               }`}
             >
               <Settings className="h-4 w-4" />
-              Настройки
+              Settings
             </Link>
           </div>
 
@@ -909,7 +909,7 @@ export default function ReviewSetPage() {
         )}
 
         {!stats && tab === "stats" && (
-          <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6 text-white/50">Загрузка статистики…</div>
+          <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6 text-white/50">Loading statistics…</div>
         )}
 
       </div>

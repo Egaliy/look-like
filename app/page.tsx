@@ -33,10 +33,10 @@ export default function Home() {
       if (!res.ok) {
         const err =
           res.status === 404
-            ? "Нет стандартной папки"
+            ? "No default project"
             : res.status === 500
-              ? "Ошибка сервера. Попробуйте ещё раз."
-              : "Не удалось загрузить проект";
+              ? "Server error. Please try again."
+              : "Failed to load project";
         setErrorMessage(err);
         setStatus("error");
         return;
@@ -73,12 +73,12 @@ export default function Home() {
         setToken("");
         setStatus("ready");
       } else {
-        setErrorMessage("Нет стандартной папки или нет фото");
+        setErrorMessage("No default project or no photos");
         setStatus("error");
       }
     } catch {
       setStatus("error");
-      setErrorMessage("Ошибка сети. Проверьте подключение и попробуйте снова.");
+      setErrorMessage("Network error. Check your connection and try again.");
     }
   };
 
@@ -96,7 +96,7 @@ export default function Home() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center max-w-sm">
           <p className="mb-2 text-lg font-semibold text-white">{errorMessage}</p>
           <p className="mb-4 text-sm text-white/60">
-            Добавьте проект в админке и поставьте его последним в списке — он станет стандартным. Либо добавьте папку imgs с тестовыми фото.
+            Add a project in the admin and put it last in the list to make it the default. Or add an imgs folder with test photos.
           </p>
           <div className="flex flex-col gap-2">
             <button
@@ -104,13 +104,13 @@ export default function Home() {
               onClick={loadDefaultFeed}
               className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
             >
-              Повторить
+              Retry
             </button>
             <Link
               href="/admin"
               className="inline-block rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
             >
-              Открыть админку
+              Open admin
             </Link>
           </div>
         </div>

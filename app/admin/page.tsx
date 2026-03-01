@@ -426,7 +426,7 @@ export default function AdminPage() {
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>Create project</h2>
           <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-white/80">URL проекта</label>
+            <label className="mb-2 block text-sm font-medium text-white/80">Project URL</label>
             <div
               className={`flex items-stretch overflow-hidden rounded-md border-2 ${borderColor} bg-white/5 focus-within:ring-2 focus-within:ring-white/20`}
             >
@@ -486,7 +486,7 @@ export default function AdminPage() {
                           />
                           {isImage && !loaded && (
                             <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60">
-                              <span className="text-xs text-white/80">Загрузка…</span>
+                              <span className="text-xs text-white/80">Loading…</span>
                             </div>
                           )}
                         </>
@@ -636,7 +636,7 @@ export default function AdminPage() {
                         e.dataTransfer.effectAllowed = "move";
                       }}
                       className="cursor-grab active:cursor-grabbing touch-none shrink-0 rounded p-1 text-white/40 hover:text-white/70 hover:bg-white/10"
-                      title="Перетащите для изменения порядка"
+                      title="Drag to reorder"
                     >
                       <GripVertical className="h-5 w-5" />
                     </div>
@@ -646,7 +646,7 @@ export default function AdminPage() {
                           <span className="font-medium">{p.title}</span>
                         </div>
                         <div className="text-xs text-white/50 mt-0.5">
-                          {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · Создаётся…
+                          {p._count.images} photos · {p._count.links} links · {p._count.ratings} ratings · Creating…
                         </div>
                       </div>
                     ) : (
@@ -668,7 +668,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            title={copiedLinkId === p.id ? "Скопировано!" : "Скопировать ссылку"}
+                            title={copiedLinkId === p.id ? "Copied!" : "Copy link"}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -715,7 +715,7 @@ export default function AdminPage() {
             </ul>
           )}
           {reordering && (
-            <p className="mt-2 text-xs text-white/50">Сохранение порядка…</p>
+            <p className="mt-2 text-xs text-white/50">Saving order…</p>
           )}
         </div>
 
@@ -761,7 +761,7 @@ export default function AdminPage() {
         {pendingDelete && (
           <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-white/10 bg-black/95 px-4 py-3 backdrop-blur-sm">
             <span className="text-sm text-white">
-              Вы точно хотите удалить «{pendingDelete.project.title}»? <span className="font-mono font-semibold tabular-nums">{pendingDelete.seconds}</span> сек
+              Are you sure you want to delete «{pendingDelete.project.title}»? <span className="font-mono font-semibold tabular-nums">{pendingDelete.seconds}</span> sec
             </span>
             <Button
               variant="outline"
@@ -776,7 +776,7 @@ export default function AdminPage() {
               }}
               className="border-white/20 text-white hover:bg-white/10"
             >
-              Отмена
+              Cancel
             </Button>
           </div>
         )}
