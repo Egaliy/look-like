@@ -42,6 +42,9 @@ const defaultFeedSelect = {
  */
 export async function GET() {
   try {
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+      return NextResponse.json({ error: "No default project or link" }, { status: 404 });
+    }
     await ensureReviewSetColumns();
     let reviewSetWithLink: DefaultFeedRow | null = null;
 

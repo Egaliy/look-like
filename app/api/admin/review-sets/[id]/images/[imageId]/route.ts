@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const runtime = "nodejs";
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; imageId: string } }
@@ -35,10 +37,11 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal server error";
     console.error("Error deleting image:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: String(message) },
       { status: 500 }
     );
   }
