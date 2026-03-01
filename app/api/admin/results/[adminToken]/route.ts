@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: { adminToken: string } }
 ) {
   if (process.env.NEXT_PHASE === "phase-production-build") {
-    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+    return NextResponse.json({ images: [], sessions: [] }, { status: 200 });
   }
   try {
     const reviewLink = await prisma.reviewLink.findUnique({

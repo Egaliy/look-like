@@ -8,7 +8,7 @@ export async function DELETE(
   { params }: { params: { adminToken: string; clientId: string } }
 ) {
   if (process.env.NEXT_PHASE === "phase-production-build") {
-    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+    return NextResponse.json({ success: true }, { status: 200 });
   }
   try {
     // Находим ссылку по adminToken
