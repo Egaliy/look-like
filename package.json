@@ -2,7 +2,7 @@
   "name": "like-that",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": { "node": "20.x" },
   "scripts": {
     "dev": "next dev",
     "build": "NEXT_PHASE=phase-production-build next build",
