@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
  * Если 200 — БД доступна. Если 500 — смотри body.error
  */
 export async function GET() {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ ok: true, build: "skip" });
+  }
   const hasUrl = !!process.env.DATABASE_URL?.trim();
   if (!hasUrl) {
     return NextResponse.json(

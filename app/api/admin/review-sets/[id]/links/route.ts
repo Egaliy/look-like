@@ -8,6 +8,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     const reviewSet = await prisma.reviewSet.findUnique({
       where: { id: params.id },

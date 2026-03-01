@@ -7,6 +7,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; linkId: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ success: true });
+  }
   try {
     // Проверяем, что ссылка принадлежит проекту
     const link = await prisma.reviewLink.findUnique({

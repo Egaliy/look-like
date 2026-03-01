@@ -8,6 +8,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; imageId: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ success: true });
+  }
   try {
     // Проверяем, что изображение принадлежит проекту
     const image = await prisma.imageAsset.findUnique({

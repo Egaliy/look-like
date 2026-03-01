@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     const body = await request.json();
     const { orderedIds } = body;

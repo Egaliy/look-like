@@ -5,6 +5,9 @@ import { ensureReviewSetColumns } from "@/lib/ensure-review-set-columns";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json([]);
+  }
   try {
     await ensureReviewSetColumns();
     const listSelect = {
@@ -94,6 +97,9 @@ function createSlug(title: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     await ensureReviewSetColumns();
     const body = await request.json();

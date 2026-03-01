@@ -7,6 +7,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     const body = await request.json();
     const { imageId, decision, orderIndex, sessionId, clientId, userName } = body;

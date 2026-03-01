@@ -66,6 +66,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);
@@ -120,6 +123,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);
@@ -176,6 +182,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "Not available during build" }, { status: 503 });
+  }
   try {
     await ensureReviewSetColumns();
     const reviewSet = await findReviewSetByIdOrSlug(params.id);

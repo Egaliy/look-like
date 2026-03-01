@@ -12,6 +12,9 @@ interface CheckResult {
 }
 
 export async function GET() {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ ok: true, build: "skip" });
+  }
   const checks: Record<string, CheckResult> = {};
   let allOk = true;
 
