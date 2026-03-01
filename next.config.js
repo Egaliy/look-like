@@ -11,4 +11,15 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Чтобы API-роуты видели фазу сборки (NEXT_PHASE) при "collect page data" на Vercel
+module.exports = (phase, { defaultConfig }) => {
+  return {
+    ...defaultConfig,
+    ...nextConfig,
+    env: {
+      ...defaultConfig.env,
+      ...(nextConfig.env || {}),
+      NEXT_PHASE: phase,
+    },
+  }
+}
