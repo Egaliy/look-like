@@ -18,7 +18,7 @@ export async function GET() {
   const checks: Record<string, CheckResult> = {};
   let allOk = true;
 
-  // 1. База данных (без raw/prepared statements — совместимо с PgBouncer/Supabase pooler)
+  // 1. Database (no raw/prepared — works with PgBouncer/Supabase pooler)
   try {
     const count = await prisma.reviewSet.count();
     checks.database = { ok: true, message: "Connected", detail: `Projects: ${count}` };
@@ -72,9 +72,9 @@ export async function GET() {
     detail: s3Configured ? "Optional storage enabled" : "Uploads go to public/uploads",
   };
 
-  // 4. Директория загрузок (доступ на запись)
-  const uploadsRoot = join(process.cwd(), "public", "uploads");
+  // 4. Uploads directory (on Vercel serverless may be read-only — we catch and report)
   try {
+    const uploadsRoot = join(process.cwd(), "public", "uploads");
     if (!existsSync(uploadsRoot)) {
       mkdirSync(uploadsRoot, { recursive: true });
     }

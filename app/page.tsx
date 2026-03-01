@@ -31,12 +31,18 @@ export default function Home() {
       const res = await fetchPromise;
 
       if (!res.ok) {
-        const err =
+        let err =
           res.status === 404
             ? "No default project"
-            : res.status === 500
-              ? "Server error. Please try again."
-              : "Failed to load project";
+            : res.status === 503
+              ? "Database not configured. Set DATABASE_URL in Vercel."
+              : res.status === 500
+                ? "Server error. Please try again."
+                : "Failed to load project";
+        try {
+          const errData = await res.clone().json();
+          if (errData && typeof errData.error === "string") err = errData.error;
+        } catch (_) {}
         setErrorMessage(err);
         setStatus("error");
         return;

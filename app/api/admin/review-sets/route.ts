@@ -8,6 +8,12 @@ export async function GET() {
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return NextResponse.json([]);
   }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not set. Add it in Vercel → Project → Settings → Environment Variables." },
+      { status: 503 }
+    );
+  }
   try {
     await ensureReviewSetColumns();
     const listSelect = {

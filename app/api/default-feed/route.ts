@@ -43,10 +43,16 @@ export const dynamic = "force-dynamic";
  * Главная страница рендерит их без редиректа.
  */
 export async function GET() {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return NextResponse.json({ error: "No default project or link" }, { status: 404 });
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not set. Configure it in Vercel environment variables." },
+      { status: 503 }
+    );
+  }
   try {
-    if (process.env.NEXT_PHASE === "phase-production-build") {
-      return NextResponse.json({ error: "No default project or link" }, { status: 404 });
-    }
     await ensureReviewSetColumns();
     let reviewSetWithLink: DefaultFeedRow | null = null;
 

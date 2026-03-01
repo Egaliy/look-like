@@ -213,8 +213,15 @@ export default function AdminPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ slug }),
         });
-        const data = await res.json();
-        
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setTitleValidation({
+            isValid: false,
+            message: (data && typeof data.error === "string" ? data.error : `Server error (${res.status})`),
+            checking: false,
+          });
+          return;
+        }
         if (data.available) {
           setTitleValidation({ isValid: true, message: "OK", checking: false });
         } else {
@@ -227,7 +234,7 @@ export default function AdminPage() {
       } catch (error) {
         setTitleValidation({
           isValid: false,
-          message: "Check error",
+          message: "Network error. Check connection.",
           checking: false,
         });
       }
@@ -426,7 +433,7 @@ export default function AdminPage() {
         <div className="mb-8 rounded-lg border border-white/10 bg-white/5 p-6">
           <h2 className="mb-4 text-white" style={{ fontSize: "28px", fontWeight: 400, lineHeight: "34px" }}>Create project</h2>
           <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-white/80">Project URL</label>
+            <label className="mb-2 block text-sm font-medium text-white/80">Project URL (slug only, e.g. my-project)</label>
             <div
               className={`flex items-stretch overflow-hidden rounded-md border-2 ${borderColor} bg-white/5 focus-within:ring-2 focus-within:ring-white/20`}
             >

@@ -3,9 +3,22 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+export async function GET() {
+  return NextResponse.json(
+    { error: "Use POST with JSON body: { slug: string }" },
+    { status: 400 }
+  );
+}
+
 export async function POST(request: NextRequest) {
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return NextResponse.json({ available: true, slug: "" }, { status: 200 });
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    return NextResponse.json(
+      { available: false, error: "DATABASE_URL is not set. Add it in Vercel environment variables." },
+      { status: 503 }
+    );
   }
   try {
     const body = await request.json();
