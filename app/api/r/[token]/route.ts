@@ -46,7 +46,7 @@ export async function GET(
 ) {
   try {
     await ensureReviewSetColumns();
-    let reviewLink: Awaited<ReturnType<typeof prisma.reviewLink.findUnique<{ select: typeof linkSelectWithMax }>>>;
+    let reviewLink: Awaited<ReturnType<typeof prisma.reviewLink.findUnique<{ where: { token: string }; select: typeof linkSelectWithMax }>>>;
     try {
       reviewLink = await prisma.reviewLink.findUnique({
         where: { token: params.token },

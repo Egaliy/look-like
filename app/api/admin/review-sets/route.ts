@@ -34,8 +34,8 @@ export async function GET() {
         select: { token: true, adminToken: true, _count: { select: { ratings: true } } },
       },
     } as const;
-    type SetRow = Awaited<ReturnType<typeof prisma.reviewSet.findMany<{ select: typeof listSelect; orderBy: unknown }>>>[number];
-    type SetRowNoOrder = Awaited<ReturnType<typeof prisma.reviewSet.findMany<{ select: typeof listSelectNoOrder; orderBy: unknown }>>>[number];
+    type SetRow = Awaited<ReturnType<typeof prisma.reviewSet.findMany<{ select: typeof listSelect; orderBy: [{ order: "asc" }, { createdAt: "desc" }] }>>>[number];
+    type SetRowNoOrder = Awaited<ReturnType<typeof prisma.reviewSet.findMany<{ select: typeof listSelectNoOrder; orderBy: { createdAt: "desc" } }>>>[number];
     let reviewSets: SetRow[] | SetRowNoOrder[];
     let useOrder = true;
     try {

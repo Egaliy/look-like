@@ -803,7 +803,7 @@ export function FeedContent({
                         }}
                         initial={{ opacity: 0.65, scale: 0.94 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        exit={() => {
+                        exit={(() => {
                           const action = exitActionRef.current.get(current.id) || null;
                           return {
                             x: action === "like" ? 800 : action === "dislike" ? -800 : 0,
@@ -813,7 +813,7 @@ export function FeedContent({
                             scale: 0.8,
                             transition: { duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] },
                           };
-                        }}
+                        })()}
                         transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
                         onAnimationComplete={() => {
                           // Очищаем действие после завершения анимации

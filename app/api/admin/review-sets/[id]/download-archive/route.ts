@@ -21,6 +21,7 @@ export async function GET(
       where: { id: params.id },
       select: {
         id: true,
+        title: true,
         images: {
           select: {
             id: true,
