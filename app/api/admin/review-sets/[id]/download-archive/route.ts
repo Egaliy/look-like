@@ -5,6 +5,8 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
+export const dynamic = "force-dynamic";
+
 const BUCKETS = ["zero", "one", "twoPlus"] as const;
 
 export async function GET(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureReviewSetColumns } from "@/lib/ensure-review-set-columns";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     await ensureReviewSetColumns();

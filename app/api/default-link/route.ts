@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Возвращает ссылку (token) на стандартный проект.
  * Стандартный = последняя папка в списке (максимальный order).

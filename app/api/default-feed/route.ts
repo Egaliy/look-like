@@ -36,6 +36,8 @@ const defaultFeedSelect = {
   },
 } as const;
 
+export const dynamic = "force-dynamic";
+
 /**
  * Возвращает данные ленты последнего проекта по order (или по createdAt).
  * Главная страница рендерит их без редиректа.

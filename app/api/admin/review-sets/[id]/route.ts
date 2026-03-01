@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureReviewSetColumns } from "@/lib/ensure-review-set-columns";
 
+export const dynamic = "force-dynamic";
+
 /** Cuid обычно начинается с "c" и имеет фиксированную длину. Иначе считаем, что передан slug. */
 function isCuid(value: string): boolean {
   return /^c[a-z0-9]{24}$/i.test(value);
